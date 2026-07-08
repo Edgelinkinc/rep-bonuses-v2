@@ -1097,9 +1097,9 @@ function renderMyPay(){
   for(var i=0;i<wk.reps.length;i++){if(wk.reps[i].ntid.toLowerCase()===(curRep.ntid||'').toLowerCase()){rd=wk.reps[i];break;}}
   if(!rd){se.innerHTML='<p style="color:var(--gray);padding:20px">No data found for your NTID.</p>';be.innerHTML='';me.innerHTML='';return;}
   var c=calcRep(rd);var cbd=cbForWeek(rd.ntid,wk.weekStart);var net=Math.max(0,c.weeklyBonus-cbd.total);
+  var r=getRules();var tmax=r.vt[r.vt.length-1].min+10;var pct=Math.min(100,(c.voice.lines/tmax)*100);
   document.getElementById('db').className='db'+(c.voice.decel?' show':'');
   if(c.voice.decel){document.getElementById('db').innerHTML='\u26A0\uFE0F 50% Decelerator Applied \u2014 95-day retention ('+(rd.retention!==null&&rd.retention!==undefined?rd.retention.toFixed(1)+'%':'n/a')+') is below '+r.drt+'%';}
-  var r=getRules();var tmax=r.vt[r.vt.length-1].min+10;var pct=Math.min(100,(c.voice.lines/tmax)*100);
   var accProfit=rd.totaccessoryprofit||0;
   var accMax=r.at[r.at.length-1].min;
   var accPct=accMax>0?Math.min(100,(accProfit/accMax)*100):0;
