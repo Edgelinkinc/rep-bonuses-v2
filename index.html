@@ -216,7 +216,7 @@ tbody td{padding:10px 12px;white-space:nowrap}
         <div class="sg" id="cp-stats"></div>
         <div class="card">
           <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px">
-            <div class="ct" style="margin:0">Team Payouts</div>
+            <div><div class="ct" style="margin:0">Team Payouts</div><div style="font-size:11px;color:var(--gray)">Tap any rep to see their full breakdown</div></div>
             <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
               <select id="co-rep-sel" style="padding:8px 12px;border:1.5px solid var(--gl);border-radius:8px;font-family:'Montserrat',sans-serif;font-size:13px"><option value="all">Whole Team</option></select>
               <button class="btn btn-p btn-sm" onclick="coachExportPDF()">&#11015; DOWNLOAD PDF</button>
@@ -527,6 +527,16 @@ tbody td{padding:10px 12px;white-space:nowrap}
     <h3>Confirm</h3>
     <p style="font-size:13px;color:var(--gray);margin-bottom:16px" id="conf-msg">Are you sure?</p>
     <div class="mf"><button class="btn btn-s" onclick="cm('mo-confirm')">Cancel</button><button class="btn btn-d" id="conf-ok">CONFIRM</button></div>
+  </div>
+</div>
+
+<div class="mo" id="mo-rep-view">
+  <div class="md" style="max-width:560px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:6px">
+      <h3 id="mo-rep-view-name" style="margin:0"></h3>
+      <button class="btn btn-s btn-sm" onclick="cm('mo-rep-view')">Close</button>
+    </div>
+    <div id="mo-rep-view-body"></div>
   </div>
 </div>
 
@@ -1090,28 +1100,21 @@ function renderAH(){
 }
 
 // ---- MY PAY ----
-function renderMyPay(){
-  var wk=getLatestWeek();var se=document.getElementById('mp-stats');var be=document.getElementById('mp-break');var me=document.getElementById('mp-month');
-  if(!wk){se.innerHTML='<p style="color:var(--gray);padding:20px">No data available.</p>';be.innerHTML='';me.innerHTML='';return;}
-  var rd=null;
-  for(var i=0;i<wk.reps.length;i++){if(wk.reps[i].ntid.toLowerCase()===(curRep.ntid||'').toLowerCase()){rd=wk.reps[i];break;}}
-  if(!rd){se.innerHTML='<p style="color:var(--gray);padding:20px">No data found for your NTID.</p>';be.innerHTML='';me.innerHTML='';return;}
+function repBreakdownHTML(rd,wk){
   var c=calcRep(rd);var cbd=cbForWeek(rd.ntid,wk.weekStart);var net=Math.max(0,c.weeklyBonus-cbd.total);
   var r=getRules();var tmax=r.vt[r.vt.length-1].min+10;var pct=Math.min(100,(c.voice.lines/tmax)*100);
-  document.getElementById('db').className='db'+(c.voice.decel?' show':'');
-  if(c.voice.decel){document.getElementById('db').innerHTML='\u26A0\uFE0F 50% Decelerator Applied \u2014 95-day retention ('+(rd.retention!==null&&rd.retention!==undefined?rd.retention.toFixed(1)+'%':'n/a')+') is below '+r.drt+'%';}
-  var accProfit=rd.totaccessoryprofit||0;
-  var accMax=r.at[r.at.length-1].min;
-  var accPct=accMax>0?Math.min(100,(accProfit/accMax)*100):0;
+  var accProfit=rd.totaccessoryprofit||0;var accMax=r.at[r.at.length-1].min;var accPct=accMax>0?Math.min(100,(accProfit/accMax)*100):0;
   var pvp=c.voice.idx>=0?r.vt[c.voice.idx].pay:0;
-  se.innerHTML=
+  var decelBanner=c.voice.decel?'<div style="background:#fff3cd;border:1px solid #ffc107;border-radius:10px;padding:10px 14px;font-size:12px;font-weight:600;color:#856404;margin-bottom:12px">\u26A0\uFE0F 50% Decelerator Applied \u2014 95-day retention ('+(rd.retention!==null&&rd.retention!==undefined?rd.retention.toFixed(1)+'%':'n/a')+') is below '+r.drt+'%</div>':'';
+  var cbL='';
+  for(var ci=0;ci<cbd.items.length;ci++){var it=cbd.items[ci];cbL+='<div class="br cb"><span class="bl">\u26A0\uFE0F Reason: '+esc(it.category)+(it.notes?' \u2014 '+esc(it.notes):'')+' ('+fmtD(it.date)+')</span><span class="bv">-'+fmt(it.amount)+'</span></div>';}
+  var stats=
+    '<div class="sg">'+
     '<div class="sc mg"><div class="val">'+fmt(c.weeklyBonus)+'</div><div class="lbl">Weekly Bonus</div></div>'+
     '<div class="sc rd"><div class="val">'+fmt(cbd.total)+'</div><div class="lbl">Chargebacks</div></div>'+
     '<div class="sc gr"><div class="val">'+fmt(net)+'</div><div class="lbl">Net Payout</div></div>'+
-    '<div class="sc or"><div class="val">'+fmt(c.arcade)+'</div><div class="lbl">Arcade Daily</div></div>';
-  var cbL='';
-  for(var ci=0;ci<cbd.items.length;ci++){var it=cbd.items[ci];cbL+='<div class="br cb"><span class="bl">\u26A0\uFE0F Reason: '+esc(it.category)+(it.notes?' \u2014 '+esc(it.notes):'')+' ('+fmtD(it.date)+')</span><span class="bv">-'+fmt(it.amount)+'</span></div>';}
-  be.innerHTML=
+    '<div class="sc or"><div class="val">'+fmt(c.arcade)+'</div><div class="lbl">Arcade Daily</div></div></div>';
+  var breakdown=
     '<div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">'+
     '<span style="font-size:13px;font-weight:600">Voice Tier: '+tierLabel(c.voice.tier)+' ('+c.voice.lines+' lines)</span>'+tb(c.voice.tier)+
     '</div><div class="tbw"><div class="tb" style="width:'+pct+'%"></div></div></div>'+
@@ -1132,17 +1135,50 @@ function renderMyPay(){
     (cbL?cbL:'<div class="br cb"><span class="bl" style="color:var(--gray)">No chargebacks this period</span><span class="bv">-'+fmt(0)+'</span></div>')+
     '<div class="br cb"><span class="bl" style="font-weight:700">Total Chargebacks</span><span class="bv">-'+fmt(cbd.total)+'</span></div>'+
     '<div class="br net"><span class="bl">NET WEEKLY PAYOUT</span><span class="bv">'+fmt(net)+'</span></div>';
+  // Monthly
   var weeks=getWeeks();weeks.sort(function(a,b){return new Date(a.weekStart)-new Date(b.weekStart);});
   var mB=0,mC=0,wR='';
   for(var w=0;w<weeks.length;w++){var wk2=weeks[w];for(var rr=0;rr<wk2.reps.length;rr++){
-    if(wk2.reps[rr].ntid.toLowerCase()!==(curRep.ntid||'').toLowerCase())continue;
+    if(wk2.reps[rr].ntid.toLowerCase()!==rd.ntid.toLowerCase())continue;
     var wc=calcRep(wk2.reps[rr]);var wCB=cbForWeek(wk2.reps[rr].ntid,wk2.weekStart);
     mB+=wc.weeklyBonus;mC+=wCB.total;
     wR+='<div class="br"><span class="bl">Week of '+fmtD(wk2.weekStart)+'</span><span class="bv">'+fmt(Math.max(0,wc.weeklyBonus-wCB.total))+'</span></div>';
   }}
-  me.innerHTML=wR+'<div class="br tot"><span class="bl">MONTHLY BONUS GROSS</span><span class="bv">'+fmt(mB)+'</span></div>'+
+  var monthly=wR+'<div class="br tot"><span class="bl">MONTHLY BONUS GROSS</span><span class="bv">'+fmt(mB)+'</span></div>'+
     '<div class="br cb"><span class="bl" style="font-weight:700">Total Monthly Chargebacks</span><span class="bv">-'+fmt(mC)+'</span></div>'+
     '<div class="br net"><span class="bl">MONTHLY NET</span><span class="bv">'+fmt(Math.max(0,mB-mC))+'</span></div>';
+  return {stats:stats,decel:decelBanner,breakdown:breakdown,monthly:monthly};
+}
+
+// Coach: open a rep's full breakdown in a modal (same view the rep sees)
+function coachViewRep(ntid){
+  var wk=getLatestWeek();if(!wk){showToast('No data loaded.');return;}
+  var rd=null;for(var i=0;i<wk.reps.length;i++){if(wk.reps[i].ntid.toLowerCase()===ntid.toLowerCase()){rd=wk.reps[i];break;}}
+  if(!rd){showToast('No data for this rep.');return;}
+  var b=repBreakdownHTML(rd,wk);
+  document.getElementById('mo-rep-view-name').textContent=rd.full_name+'  \u2014  '+liveCoach(rd)+'  \u2022  '+(liveStore(rd)||'No store');
+  document.getElementById('mo-rep-view-body').innerHTML=
+    b.decel+b.stats+
+    '<div class="card" style="box-shadow:none;border:1px solid var(--gl);margin-bottom:12px"><div class="ct">Weekly Bonus Breakdown</div>'+b.breakdown+'</div>'+
+    '<div class="card" style="box-shadow:none;border:1px solid var(--gl);margin-bottom:0"><div class="ct">Monthly Running Total</div>'+b.monthly+'</div>';
+  om('mo-rep-view');
+}
+
+function renderMyPay(){
+  var wk=getLatestWeek();var se=document.getElementById('mp-stats');var be=document.getElementById('mp-break');var me=document.getElementById('mp-month');
+  if(!wk){se.innerHTML='<p style="color:var(--gray);padding:20px">No data available.</p>';be.innerHTML='';me.innerHTML='';return;}
+  var rd=null;
+  for(var i=0;i<wk.reps.length;i++){if(wk.reps[i].ntid.toLowerCase()===(curRep.ntid||'').toLowerCase()){rd=wk.reps[i];break;}}
+  if(!rd){se.innerHTML='<p style="color:var(--gray);padding:20px">No data found for your NTID.</p>';be.innerHTML='';me.innerHTML='';return;}
+  var c=calcRep(rd);
+  document.getElementById('db').className='db'+(c.voice.decel?' show':'');
+  if(c.voice.decel){var rr9=getRules();document.getElementById('db').innerHTML='\u26A0\uFE0F 50% Decelerator Applied \u2014 95-day retention ('+(rd.retention!==null&&rd.retention!==undefined?rd.retention.toFixed(1)+'%':'n/a')+') is below '+rr9.drt+'%';}
+  var bd=repBreakdownHTML(rd,wk);
+  se.innerHTML=bd.stats;
+  be.innerHTML=bd.breakdown;
+  me.innerHTML=bd.monthly;
+  return;
+  /* legacy inline (unused) */
 }
 
 // ---- MY TIER / MY CB ----
@@ -1976,7 +2012,7 @@ function renderCoachAll(){
     var rep=d.reps[i];var c=calcRep(rep);var cbd=cbForWeek(rep.ntid,d.week.weekStart);
     var net=Math.max(0,c.weeklyBonus-cbd.total);
     tB+=c.weeklyBonus;tA+=c.arcade;tC+=cbd.total;tN+=net;
-    rows+='<tr><td><strong>'+esc(rep.full_name)+'</strong></td>'+
+    rows+='<tr style="cursor:pointer" onclick="coachViewRep(\''+esc(rep.ntid)+'\')" title="Click to view full breakdown"><td><strong style="color:var(--magenta)">'+esc(rep.full_name)+'</strong></td>'+
       '<td style="font-size:11px;color:var(--gray)">'+esc(rep.ntid)+'</td>'+
       '<td>'+esc(liveStore(rep)||'\u2014')+'</td><td>'+tb(c.voice.tier)+'</td>'+
       '<td class="amt">'+fmt(c.voice.payout)+'</td><td class="amt">'+fmt(c.mim)+'</td>'+
