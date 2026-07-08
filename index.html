@@ -557,7 +557,7 @@ function getMsal(){
 // ═══ SHAREPOINT SYNC (JSON blobs in Settings list) ═══
 var SYNC_KEYS=null;
 function getSyncKeys(){
-  if(!SYNC_KEYS)SYNC_KEYS=[{sp:'weeks',ls:SK.weeks},{sp:'roster',ls:SK.roster},{sp:'stores',ls:SK.stores},{sp:'chargebacks',ls:SK.cb},{sp:'rules',ls:SK.rules},{sp:'cb_categories',ls:SK.cats}];
+  if(!SYNC_KEYS)SYNC_KEYS=[{sp:'weeks',ls:SK.weeks},{sp:'roster',ls:SK.roster},{sp:'stores',ls:SK.stores},{sp:'chargebacks',ls:SK.cb},{sp:'rules',ls:SK.rules},{sp:'cb_categories',ls:SK.cats},{sp:'coach_emails',ls:SK.cemails}];
   return SYNC_KEYS;
 }
 var syncDirty={};var syncTimer=null;
@@ -681,7 +681,7 @@ function adminMsConnect(){
     spPull(function(ok){if(ok){showToast('Data loaded from SharePoint.');if(role==='admin')renderAH();}});
   }).catch(function(e){console.error(e);showToast('Sign-in failed.');});
 }
-var SK={weeks:'elb_wks',roster:'elb_ros',stores:'elb_sto',rules:'elb_rul',cb:'elb_cb',cats:'elb_cats'};
+var SK={weeks:'elb_wks',roster:'elb_ros',stores:'elb_sto',rules:'elb_rul',cb:'elb_cb',cats:'elb_cats',cemails:'elb_cemails'};
 var DEF_CATS=['XBM','RMA','SIM Card','Cash Shortage'];
 var COACHES=['Rose Perez','Ambulai Sheku','Joel Montero','Manny Rivera','Mr. Watts','Cheryl','TBD'];
 
@@ -719,6 +719,11 @@ function getStores(){
 function getWeeks(){return ld(SK.weeks,[]);}
 function getCBs(){return ld(SK.cb,[]);}
 function getCats(){return ld(SK.cats,DEF_CATS.slice());}
+function getCoachEmails(){
+  var m=ld(SK.cemails,null);
+  if(m&&typeof m==='object')return m;
+  return SP_CONFIG.coachEmails;
+}
 function getLatestWeek(){var w=getWeeks();if(!w.length)return null;w.sort(function(a,b){return new Date(b.weekStart)-new Date(a.weekStart);});return w[0];}
 function getRosterRep(ntid){var r=getRoster();for(var i=0;i<r.length;i++){if(r[i].ntid.toLowerCase()===ntid.toLowerCase())return r[i];}return null;}
 // Live coach/store resolution: roster is source of truth, week snapshot is fallback
@@ -787,14 +792,18 @@ function coachLogin(){
 function coachMsLogin(){
   var errEl=document.getElementById('c-ms-err');
   errEl.style.display='none';
-  if(!msalReady()){
+  if(typeof msal==='undefined'){
+    errEl.textContent='Microsoft sign-in library could not load (network may be blocking it). Use the backup PIN.';
+    errEl.style.display='block';return;
+  }
+  if(SP_CONFIG.clientId.indexOf('PASTE')>-1){
     errEl.textContent='Microsoft sign-in not configured yet. Use the backup PIN.';
     errEl.style.display='block';return;
   }
   getMsal().loginPopup({scopes:['User.Read']}).then(function(res){
     msalAccount=res.account;
     var email=(res.account.username||'').toLowerCase();
-    var coach=SP_CONFIG.coachEmails[email]||null;
+    var emailMap=getCoachEmails();var coach=emailMap[email]||null;
     if(!coach){
       errEl.textContent='Signed in as '+email+' but that email is not mapped to a coach. Contact HR.';
       errEl.style.display='block';return;
@@ -1473,9 +1482,32 @@ function renderRules(){
       '<div class="rr"><label>Retention Threshold %</label><input type="number" id="r-drt" value="'+r.drt+'" min="0" max="100"></div>'+
       '<div class="rr"><label>Decel Factor (0\u20131)</label><input type="number" id="r-df" value="'+r.df+'" min="0" max="1" step="0.1"></div></div>'+
     '<div class="rb"><h4>Chargeback</h4>'+
-      '<div class="rr"><label>Flag Threshold ($)</label><input type="number" id="r-cbf" value="'+r.cbFlag+'" min="0" step="1"></div></div>';
+      '<div class="rr"><label>Flag Threshold ($)</label><input type="number" id="r-cbf" value="'+r.cbFlag+'" min="0" step="1"></div></div>'+
+    buildCoachEmailEditor();
+}
+function buildCoachEmailEditor(){
+  var m=getCoachEmails();var rows='';
+  for(var i=0;i<COACHES.length;i++){
+    var coach=COACHES[i];if(coach==='TBD')continue;
+    var email='';
+    for(var e in m){if(m[e]===coach){email=e;break;}}
+    rows+='<div class="rr"><label>'+esc(coach)+'</label><input type="email" id="ce-'+i+'" value="'+esc(email)+'" style="width:220px;text-align:left" placeholder="email@edgelinkinc.com"></div>';
+  }
+  return '<div class="rb"><h4>Coach Microsoft Sign-In Emails</h4>'+
+    '<p style="font-size:11px;color:var(--gray);margin-bottom:10px">Which work email signs in as which coach. Saved with SAVE RULES.</p>'+rows+'</div>';
+}
+function saveCoachEmails(){
+  var m={};
+  for(var i=0;i<COACHES.length;i++){
+    var coach=COACHES[i];if(coach==='TBD')continue;
+    var el=document.getElementById('ce-'+i);if(!el)continue;
+    var email=(el.value||'').trim().toLowerCase();
+    if(email)m[email]=coach;
+  }
+  sv(SK.cemails,m);
 }
 function saveRules(){
+  saveCoachEmails();
   var r=getRules();
   for(var i=0;i<r.vt.length;i++){r.vt[i].pay=parseFloat(document.getElementById('vtp-'+i).value)||0;r.vt[i].min=parseInt(document.getElementById('vtm-'+i).value)||0;}
   for(var k=0;k<r.at.length;k++)r.at[k].pct=parseFloat(document.getElementById('atp-'+k).value)||0;
@@ -1962,7 +1994,7 @@ document.getElementById('r-last').addEventListener('keydown',function(e){if(e.ke
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-<script src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/msal-browser/2.38.3/msal-browser.min.js"></script>
 <script>
 window.addEventListener('load',function(){
   if(window.jspdf&&window.jspdf.jsPDF)window.jsPDF=window.jspdf.jsPDF;
