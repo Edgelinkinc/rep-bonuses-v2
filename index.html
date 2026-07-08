@@ -557,7 +557,7 @@ function getMsal(){
 // ═══ SHAREPOINT SYNC (JSON blobs in Settings list) ═══
 var SYNC_KEYS=null;
 function getSyncKeys(){
-  if(!SYNC_KEYS)SYNC_KEYS=[{sp:'weeks',ls:SK.weeks},{sp:'roster',ls:SK.roster},{sp:'stores',ls:SK.stores},{sp:'chargebacks',ls:SK.cb},{sp:'rules',ls:SK.rules},{sp:'cb_categories',ls:SK.cats},{sp:'coach_emails',ls:SK.cemails}];
+  if(!SYNC_KEYS)SYNC_KEYS=[{sp:'weeks',ls:SK.weeks},{sp:'roster',ls:SK.roster},{sp:'stores',ls:SK.stores},{sp:'chargebacks',ls:SK.cb},{sp:'rules',ls:SK.rules},{sp:'cb_categories',ls:SK.cats},{sp:'coach_emails',ls:SK.cemails},{sp:'coaches',ls:SK.coaches}];
   return SYNC_KEYS;
 }
 var syncDirty={};var syncTimer=null;
@@ -682,9 +682,25 @@ function adminMsConnect(){
     spPull(function(ok){if(ok){showToast('Data loaded from SharePoint.');if(role==='admin')renderAH();}});
   }).catch(function(e){console.error(e);showToast('Sign-in failed.');});
 }
-var SK={weeks:'elb_wks',roster:'elb_ros',stores:'elb_sto',rules:'elb_rul',cb:'elb_cb',cats:'elb_cats',cemails:'elb_cemails'};
+var SK={weeks:'elb_wks',roster:'elb_ros',stores:'elb_sto',rules:'elb_rul',cb:'elb_cb',cats:'elb_cats',cemails:'elb_cemails',coaches:'elb_coaches'};
 var DEF_CATS=['XBM','RMA','SIM Card','Cash Shortage'];
-var COACHES=['Rose Perez','Ambulai Sheku','Joel Montero','Manny Rivera','Mr. Watts','Cheryl','TBD'];
+var DEF_COACHES=['Rose Perez','Ambulai Sheku','Joel Montero','Manny Rivera','Mr. Watts','Cheryl'];
+// COACHES is derived live from storage; TBD is always appended last and is not stored/editable.
+function getCoaches(){
+  var c=ld(SK.coaches,null);
+  if(!c||!c.length)c=DEF_COACHES.slice();
+  // Ensure TBD is present exactly once, at the end
+  var out=[];
+  for(var i=0;i<c.length;i++){if(c[i]&&c[i]!=='TBD'&&out.indexOf(c[i])<0)out.push(c[i]);}
+  out.push('TBD');
+  return out;
+}
+function getEditableCoaches(){
+  var all=getCoaches();var out=[];
+  for(var i=0;i<all.length;i++){if(all[i]!=='TBD')out.push(all[i]);}
+  return out;
+}
+
 
 var role=null,curRep=null,editRepIdx=-1,editStoreIdx=-1,activeCBIdx=-1,confCBfn=null;
 var rawF={pbi:null,emp:null,csv:null};
@@ -867,7 +883,7 @@ function fillCoachSelects(){
     var keepAll=sel.querySelector('option[value="all"]');
     sel.innerHTML='';
     if(keepAll||id==='cb-coach'||id==='t-co'||id==='ro-co'||id==='so-co'||id==='ex-co'){var o=document.createElement('option');o.value='all';o.textContent='All Coaches';sel.appendChild(o);}
-    COACHES.forEach(function(c){var o=document.createElement('option');o.value=c;o.textContent=c;sel.appendChild(o);});
+    getCoaches().forEach(function(c){var o=document.createElement('option');o.value=c;o.textContent=c;sel.appendChild(o);});
   });
 }
 
@@ -1056,7 +1072,7 @@ function renderMyPay(){
     '<div class="sc gr"><div class="val">'+fmt(net)+'</div><div class="lbl">Net Payout</div></div>'+
     '<div class="sc or"><div class="val">'+fmt(c.arcade)+'</div><div class="lbl">Arcade Daily</div></div>';
   var cbL='';
-  for(var ci=0;ci<cbd.items.length;ci++){var it=cbd.items[ci];cbL+='<div class="br cb"><span class="bl">\u26A0\uFE0F '+esc(it.category)+' ('+fmtD(it.date)+')'+(it.notes?' \u2014 '+esc(it.notes):'')+'</span><span class="bv">-'+fmt(it.amount)+'</span></div>';}
+  for(var ci=0;ci<cbd.items.length;ci++){var it=cbd.items[ci];cbL+='<div class="br cb"><span class="bl">\u26A0\uFE0F Reason: '+esc(it.category)+(it.notes?' \u2014 '+esc(it.notes):'')+' ('+fmtD(it.date)+')</span><span class="bv">-'+fmt(it.amount)+'</span></div>';}
   be.innerHTML=
     '<div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">'+
     '<span style="font-size:13px;font-weight:600">Voice Tier: '+c.voice.tier+' ('+c.voice.lines+' lines)</span>'+tb(c.voice.tier)+
@@ -1071,8 +1087,9 @@ function renderMyPay(){
     '<div class="br arc" style="border-color:#ffe0b2"><span class="bl">HSI ('+(rd.hsi_acts||0)+' \u00D7 $'+r.arc.hsi+')</span><span class="bv">'+fmt(c.arc.hsi)+'</span></div>'+
     '<div class="br arc" style="border-color:#ffe0b2"><span class="bl">Tablets / BTS ('+(rd.bts_acts||0)+' \u00D7 $'+r.arc.bts+')</span><span class="bv">'+fmt(c.arc.bts)+'</span></div>'+
     '<div class="br arc" style="border-bottom:none"><span class="bl" style="font-weight:700">ARCADE DAILY TOTAL</span><span class="bv" style="font-weight:700">'+fmt(c.arcade)+'</span></div></div>'+
-    (cbL?'<div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--red);margin:8px 0 6px">Chargeback Deductions</div>'+cbL:'')+
-    (cbd.total>0?'<div class="br cb"><span class="bl" style="font-weight:700">Total Chargebacks</span><span class="bv">-'+fmt(cbd.total)+'</span></div>':'')+
+    '<div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--red);margin:8px 0 6px">Chargeback Deductions</div>'+
+    (cbL?cbL:'<div class="br cb"><span class="bl" style="color:var(--gray)">No chargebacks this period</span><span class="bv">-'+fmt(0)+'</span></div>')+
+    '<div class="br cb"><span class="bl" style="font-weight:700">Total Chargebacks</span><span class="bv">-'+fmt(cbd.total)+'</span></div>'+
     '<div class="br net"><span class="bl">NET WEEKLY PAYOUT</span><span class="bv">'+fmt(net)+'</span></div>';
   var weeks=getWeeks();weeks.sort(function(a,b){return new Date(a.weekStart)-new Date(b.weekStart);});
   var mB=0,mC=0,wR='';
@@ -1484,12 +1501,85 @@ function renderRules(){
       '<div class="rr"><label>Decel Factor (0\u20131)</label><input type="number" id="r-df" value="'+r.df+'" min="0" max="1" step="0.1"></div></div>'+
     '<div class="rb"><h4>Chargeback</h4>'+
       '<div class="rr"><label>Flag Threshold ($)</label><input type="number" id="r-cbf" value="'+r.cbFlag+'" min="0" step="1"></div></div>'+
+    buildCoachManager()+
     buildCoachEmailEditor();
+}
+function buildCoachManager(){
+  var cs=getEditableCoaches();var rows='';
+  for(var i=0;i<cs.length;i++){
+    rows+='<div class="rr" style="gap:6px"><input type="text" id="cm-'+i+'" value="'+esc(cs[i])+'" style="flex:1;text-align:left" data-orig="'+esc(cs[i])+'">'+
+      '<button class="btn btn-d btn-sm" onclick="removeCoach('+i+')">Remove</button></div>';
+  }
+  return '<div class="rb"><h4>Coaches</h4>'+
+    '<p style="font-size:11px;color:var(--gray);margin-bottom:10px">Add, rename, or remove coaches. Renaming updates all reps/stores assigned to them. Saved with SAVE RULES.</p>'+
+    rows+
+    '<div class="rr" style="gap:6px;margin-top:8px"><input type="text" id="cm-new" placeholder="New coach name" style="flex:1;text-align:left">'+
+    '<button class="btn btn-p btn-sm" onclick="addCoach()">Add</button></div></div>';
+}
+function saveCoachList(){
+  // Read edited names, apply renames across roster/stores, then persist the list.
+  var cs=getEditableCoaches();var newList=[];var renames=[];
+  for(var i=0;i<cs.length;i++){
+    var el=document.getElementById('cm-'+i);if(!el)continue;
+    var orig=el.getAttribute('data-orig');
+    var val=(el.value||'').trim();
+    if(!val){continue;} // blank = drop (same as remove)
+    if(val!==orig)renames.push({from:orig,to:val});
+    if(newList.indexOf(val)<0)newList.push(val);
+  }
+  // Apply renames to roster + stores
+  if(renames.length){
+    var roster=getRoster();var changedR=false;
+    for(var r=0;r<roster.length;r++){for(var k=0;k<renames.length;k++){if(roster[r].coach===renames[k].from){roster[r].coach=renames[k].to;changedR=true;}}}
+    if(changedR)sv(SK.roster,roster);
+    var stores=getStores();var changedS=false;
+    for(var s=0;s<stores.length;s++){for(var k2=0;k2<renames.length;k2++){if(stores[s].coach===renames[k2].from){stores[s].coach=renames[k2].to;changedS=true;}}}
+    if(changedS)sv(SK.stores,stores);
+    // Update coach email map keys that pointed at renamed coaches
+    var em=getCoachEmails();var emChanged=false;var em2={};
+    for(var e in em){var cn=em[e];for(var k3=0;k3<renames.length;k3++){if(cn===renames[k3].from){cn=renames[k3].to;emChanged=true;}}em2[e]=cn;}
+    if(emChanged)sv(SK.cemails,em2);
+  }
+  sv(SK.coaches,newList);
+}
+function addCoach(){
+  var el=document.getElementById('cm-new');var name=(el.value||'').trim();
+  if(!name){showToast('Enter a coach name.');return;}
+  var cs=getEditableCoaches();
+  if(cs.indexOf(name)>=0){showToast('Coach already exists.');return;}
+  cs.push(name);sv(SK.coaches,cs);
+  el.value='';
+  renderRules();fillCoachSelects();
+  showToast('Coach added. Remember to set their email + SAVE RULES.');
+}
+function removeCoach(idx){
+  var cs=getEditableCoaches();var name=cs[idx];
+  // Count assignments
+  var roster=getRoster();var cnt=0;
+  for(var r=0;r<roster.length;r++){if(roster[r].coach===name)cnt++;}
+  var msg='Remove coach "'+name+'"?';
+  if(cnt>0)msg+=' '+cnt+' rep(s) will be reassigned to TBD.';
+  openConf(msg,function(){
+    // Reassign their reps/stores to TBD
+    var ros=getRoster();var ch=false;
+    for(var r2=0;r2<ros.length;r2++){if(ros[r2].coach===name){ros[r2].coach='TBD';ch=true;}}
+    if(ch)sv(SK.roster,ros);
+    var sto=getStores();var ch2=false;
+    for(var s2=0;s2<sto.length;s2++){if(sto[s2].coach===name){sto[s2].coach='TBD';ch2=true;}}
+    if(ch2)sv(SK.stores,sto);
+    // Drop from email map
+    var em=getCoachEmails();var em2={};for(var e in em){if(em[e]!==name)em2[e]=em[e];}sv(SK.cemails,em2);
+    // Remove from list
+    var list=getEditableCoaches();var out=[];for(var i=0;i<list.length;i++){if(list[i]!==name)out.push(list[i]);}
+    sv(SK.coaches,out);
+    renderRules();fillCoachSelects();showToast('Coach removed.');
+  });
 }
 function buildCoachEmailEditor(){
   var m=getCoachEmails();var rows='';
-  for(var i=0;i<COACHES.length;i++){
-    var coach=COACHES[i];if(coach==='TBD')continue;
+  var _cs=getCoaches();
+  for(var i=0;i<_cs.length;i++){
+    var coach=_cs[i];if(coach==='TBD')continue;
     var email='';
     for(var e in m){if(m[e]===coach){email=e;break;}}
     rows+='<div class="rr"><label>'+esc(coach)+'</label><input type="email" id="ce-'+i+'" value="'+esc(email)+'" style="width:220px;text-align:left" placeholder="email@edgelinkinc.com"></div>';
@@ -1499,8 +1589,9 @@ function buildCoachEmailEditor(){
 }
 function saveCoachEmails(){
   var m={};
-  for(var i=0;i<COACHES.length;i++){
-    var coach=COACHES[i];if(coach==='TBD')continue;
+  var _cs2=getCoaches();
+  for(var i=0;i<_cs2.length;i++){
+    var coach=_cs2[i];if(coach==='TBD')continue;
     var el=document.getElementById('ce-'+i);if(!el)continue;
     var email=(el.value||'').trim().toLowerCase();
     if(email)m[email]=coach;
@@ -1508,6 +1599,7 @@ function saveCoachEmails(){
   sv(SK.cemails,m);
 }
 function saveRules(){
+  saveCoachList();
   saveCoachEmails();
   var r=getRules();
   for(var i=0;i<r.vt.length;i++){r.vt[i].pay=parseFloat(document.getElementById('vtp-'+i).value)||0;r.vt[i].min=parseInt(document.getElementById('vtm-'+i).value)||0;}
@@ -1584,21 +1676,26 @@ function drawSlip(doc,rep,week){
   }
   doc.setFillColor(255,237,213);doc.rect(M,y,PW-M*2,16,'F');
   doc.setTextColor(180,90,0);doc.setFont('helvetica','bold');doc.text('ARCADE DAILY TOTAL',CX[0]+4,y+12);doc.text(fmt(c.arcade),CX[2],y+12);y+=22;
+  // Chargeback section ALWAYS prints, even when there are none.
+  doc.setFillColor(255,235,235);doc.rect(M,y,PW-M*2,16,'F');
+  doc.setTextColor(180,0,0);doc.setFont('helvetica','bold');doc.setFontSize(9);doc.text('CHARGEBACK DEDUCTIONS',M+6,y+12);y+=18;
   if(cbd.items.length>0){
-    doc.setFillColor(255,235,235);doc.rect(M,y,PW-M*2,16,'F');
-    doc.setTextColor(180,0,0);doc.setFont('helvetica','bold');doc.text('CHARGEBACK DEDUCTIONS',M+6,y+12);y+=18;
     for(var ci=0;ci<cbd.items.length;ci++){
       var cbi=cbd.items[ci];doc.setFillColor(255,245,245);doc.rect(M,y,PW-M*2,15,'F');
       doc.setFont('helvetica','normal');doc.setTextColor(200,0,0);
-      var cbTxt=cbi.category+(cbi.notes?' - '+cbi.notes:'');
-      if(cbTxt.length>44)cbTxt=cbTxt.substring(0,41)+'...';
+      var cbTxt='Reason: '+cbi.category+(cbi.notes?' \u2014 '+cbi.notes:'');
+      if(cbTxt.length>46)cbTxt=cbTxt.substring(0,43)+'...';
       doc.text(cbTxt,CX[0]+4,y+11);doc.text(fmtD(cbi.date),CX[1],y+11);
       doc.setFont('helvetica','bold');doc.text('-'+fmt(cbi.amount),CX[2],y+11);y+=16;
     }
-    doc.setFillColor(255,235,235);doc.rect(M,y,PW-M*2,16,'F');
-    doc.setFont('helvetica','bold');doc.setFontSize(10);doc.setTextColor(180,0,0);
-    doc.text('TOTAL CHARGEBACKS',CX[0]+4,y+12);doc.text('-'+fmt(cbd.total),CX[2],y+12);y+=22;
+  } else {
+    doc.setFillColor(255,245,245);doc.rect(M,y,PW-M*2,15,'F');
+    doc.setFont('helvetica','normal');doc.setTextColor(120,120,120);
+    doc.text('No chargebacks this period',CX[0]+4,y+11);y+=16;
   }
+  doc.setFillColor(255,235,235);doc.rect(M,y,PW-M*2,16,'F');
+  doc.setFont('helvetica','bold');doc.setFontSize(10);doc.setTextColor(180,0,0);
+  doc.text('TOTAL CHARGEBACKS',CX[0]+4,y+12);doc.text('-'+fmt(cbd.total),CX[2],y+12);y+=22;
   doc.setFillColor(226,0,116);doc.rect(M,y,PW-M*2,26,'F');
   doc.setTextColor(255,255,255);doc.setFont('helvetica','bold');doc.setFontSize(14);
   doc.text('NET WEEKLY BONUS',CX[0]+4,y+18);doc.text(fmt(net),CX[2],y+18);y+=32;
@@ -1776,7 +1873,7 @@ function fillCoachFilters(){
   ['co-filter','ct-filter','ccb-filter'].forEach(function(id){
     var sel=document.getElementById(id);if(!sel)return;
     sel.innerHTML='<option value="all">All Teams</option>';
-    for(var i=0;i<COACHES.length;i++){var o=document.createElement('option');o.value=COACHES[i];o.textContent=COACHES[i];sel.appendChild(o);}
+    var _cf=getCoaches();for(var i=0;i<_cf.length;i++){var o=document.createElement('option');o.value=_cf[i];o.textContent=_cf[i];sel.appendChild(o);}
   });
 }
 function coachTeamReps(coachFilter){
