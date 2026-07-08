@@ -205,6 +205,31 @@ tbody td{padding:10px 12px;white-space:nowrap}
     </div>
     <div id="content">
 
+      <div class="view" id="view-loginlog">
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px">
+            <div><div class="ct" style="margin:0">Login Activity</div><div style="font-size:11px;color:var(--gray)" id="ll-source">Loading\u2026</div></div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <button class="btn btn-s btn-sm" onclick="renderLoginLog(true)">&#8635; REFRESH</button>
+              <button class="btn btn-p btn-sm" onclick="exportLoginCSV()">&#11015; CSV</button>
+            </div>
+          </div>
+          <div class="fc">
+            <input type="text" id="ll-srch" placeholder="Search name\u2026" oninput="renderLoginLogTable()">
+            <select id="ll-role" onchange="renderLoginLogTable()"><option value="all">All Roles</option><option value="admin">Admin</option><option value="coach">Coach</option><option value="rep">Rep</option></select>
+          </div>
+          <div class="sg" id="ll-stats"></div>
+        </div>
+        <div class="card">
+          <div class="ct">Per-Person Summary</div>
+          <div class="tw"><table><thead><tr><th>Name</th><th>Role</th><th>Logins</th><th>Last Login</th></tr></thead><tbody id="ll-summary"></tbody></table></div>
+        </div>
+        <div class="card">
+          <div class="ct">Full Login History</div>
+          <div class="tw"><table><thead><tr><th>Name</th><th>Role</th><th>Identifier</th><th>Date &amp; Time</th></tr></thead><tbody id="ll-body"></tbody></table></div>
+        </div>
+      </div>
+
       <div class="view" id="view-structure">
         <div id="structure-content" style="max-width:900px"></div>
       </div>
@@ -553,6 +578,7 @@ var SP_CONFIG={
   siteUrl:'https://evolutionwirelessinc.sharepoint.com/sites/Payroll2',
   settingsList:'Rep Bonus Settings 2',                 // list holding JSON data blobs
   getFlowUrl:'https://defaultebc8d7eeee3a4821b739b0b060e735.7f.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/183ba75cb8ed472dbcf9b731e3bbc67b/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=BWGGHwFfKWYTp6M-30YDaj4VIQhqPPehOhKofDLdrc8',  // Power Automate GET flow (reps load data without Microsoft sign-in)
+  loginLogFlowUrl:'',  // Power Automate POST flow that appends a row to 'Rep Bonus Login Log'
   coachEmails:{
     'rose@edgelinkinc.com':'Rose Perez',
     'ambulai@edgelinkinc.com':'Ambulai Sheku',
@@ -717,7 +743,7 @@ function completeAdminConnect(account){
   updateSyncBadge();
   spPull(function(ok){if(ok){showToast('Data loaded from SharePoint.');if(role==='admin')renderAH();}});
 }
-var SK={weeks:'elb_wks',roster:'elb_ros',stores:'elb_sto',rules:'elb_rul',cb:'elb_cb',cats:'elb_cats',cemails:'elb_cemails',coaches:'elb_coaches'};
+var SK={weeks:'elb_wks',roster:'elb_ros',stores:'elb_sto',rules:'elb_rul',cb:'elb_cb',cats:'elb_cats',cemails:'elb_cemails',coaches:'elb_coaches',loginlog:'elb_loginlog'};
 var DEF_CATS=['XBM','RMA','SIM Card','Cash Shortage'];
 var DEF_COACHES=['Rose Perez','Ambulai Sheku','Joel Montero','Manny Rivera','Mr. Watts','Cheryl'];
 // COACHES is derived live from storage; TBD is always appended last and is not stored/editable.
@@ -929,7 +955,38 @@ function launchApp(){
     }
     navTo('coach-pay');}
   else{buildNav(RNAV);document.getElementById('tbu').textContent=curRep?curRep.full_name||'':'';navTo('mypay');}
+  logLogin();
 }
+
+// ═══ LOGIN LOGGING ═══
+function logLogin(){
+  var who,ident;
+  if(role==='admin'){who='Admin';ident=(msalAccount&&msalAccount.username)||'PIN';}
+  else if(role==='coach'){who=myCoachName||'Coach';ident=(msalAccount&&msalAccount.username)||'PIN';}
+  else if(role==='rep'){who=(curRep&&curRep.full_name)||'Rep';ident=(curRep&&curRep.ntid)||'';}
+  else return;
+  var entry={who:who,role:role,ident:ident,ts:new Date().toISOString()};
+  // Always keep a local copy (fast, offline-safe, powers the admin log page)
+  var log=ld(SK.loginlog,[]);log.push(entry);
+  if(log.length>2000)log=log.slice(log.length-2000);
+  localStorage.setItem(SK.loginlog,JSON.stringify(log));
+  // Push to SharePoint: admin/coach via REST (Microsoft-authed); reps via POST flow
+  if((role==='admin'||role==='coach')&&msalReady()&&msalAccount){
+    spToken(function(token){
+      if(!token)return;
+      spApi('POST',loginLogItemsPath()+'/items',{Title:who,PersonName:who,PersonRole:role,Identifier:ident,LoginAt:entry.ts},token,function(err){if(err)console.error('login log',err);});
+    });
+  } else if(role==='rep'&&SP_CONFIG.loginLogFlowUrl){
+    try{
+      var xhr=new XMLHttpRequest();
+      xhr.open('POST',SP_CONFIG.loginLogFlowUrl,true);
+      xhr.setRequestHeader('Content-Type','application/json');
+      xhr.send(JSON.stringify({PersonName:who,PersonRole:role,Identifier:ident,LoginAt:entry.ts}));
+    }catch(e){console.error('login flow',e);}
+  }
+}
+function loginLogPath(){return "/_api/web/lists/getbytitle('Rep Bonus Login Log')/items?$orderby=LoginAt desc&$top=500";}
+function loginLogItemsPath(){return "/_api/web/lists/getbytitle('Rep Bonus Login Log')";}
 function fillCoachSelects(){
   ['cb-coach','t-co','ro-co','so-co','ex-co','re-coach','se-coach'].forEach(function(id){
     var sel=document.getElementById(id);if(!sel)return;
@@ -944,12 +1001,13 @@ function fillCoachSelects(){
 var ANAV=[{id:'admin-home',i:'\uD83C\uDFE0',l:'Dashboard'},{id:'upload',i:'\uD83D\uDCE4',l:'Upload Reports'},
   {id:'chargebacks',i:'\u26A0\uFE0F',l:'Chargebacks'},{id:'tier',i:'\uD83C\uDFC6',l:'Tier Achievement'},
   {id:'roster',i:'\uD83D\uDC65',l:'Rosters'},{id:'rules',i:'\u2699\uFE0F',l:'Bonus Rules'},{id:'export',i:'\uD83D\uDCC4',l:'Export Slips'},
+  {id:'loginlog',i:'\uD83D\uDD11',l:'Login Log'},
   {id:'structure',i:'\uD83D\uDCB0',l:'Pay Structure'}];
 var RNAV=[{id:'mypay',i:'\uD83D\uDCB5',l:'My Pay'},{id:'mytier',i:'\uD83C\uDFC6',l:'My Tier'},{id:'mycb',i:'\u26A0\uFE0F',l:'Chargebacks'},
   {id:'structure',i:'\uD83D\uDCB0',l:'Pay Structure'}];
 var CNAV=[{id:'coach-pay',i:'\uD83D\uDCB5',l:'Team Payouts'},{id:'coach-tier',i:'\uD83C\uDFC6',l:'Team Tiers'},
   {id:'coach-cb',i:'\u26A0\uFE0F',l:'Team Chargebacks'},{id:'structure',i:'\uD83D\uDCB0',l:'Pay Structure'}];
-var TITLES={'admin-home':'Dashboard','upload':'Upload Reports','chargebacks':'Chargebacks','tier':'Tier Achievement','roster':'Rosters','rules':'Bonus Rules','export':'Export Slips','mypay':'My Pay','mytier':'My Tier','mycb':'My Chargebacks','structure':'Pay Structure','coach-pay':'Team Payouts','coach-tier':'Team Tiers','coach-cb':'Team Chargebacks'};
+var TITLES={'admin-home':'Dashboard','upload':'Upload Reports','chargebacks':'Chargebacks','tier':'Tier Achievement','roster':'Rosters','rules':'Bonus Rules','export':'Export Slips','mypay':'My Pay','mytier':'My Tier','mycb':'My Chargebacks','structure':'Pay Structure','coach-pay':'Team Payouts','coach-tier':'Team Tiers','coach-cb':'Team Chargebacks','loginlog':'Login Log'};
 
 function buildNav(items){
   var nav=document.getElementById('snav');nav.innerHTML='';
@@ -976,6 +1034,7 @@ function navTo(id){
   if(id==='mytier')renderMyTier();
   if(id==='mycb')renderMyCB();
   if(id==='structure')document.getElementById('structure-content').innerHTML=buildStructureHTML();
+  if(id==='loginlog')renderLoginLog();
   if(id==='coach-pay')renderCoachAll();
   if(id==='coach-tier'){fillCoachTierWk();renderCoachTier();}
   if(id==='coach-cb')renderCoachCB();
@@ -1978,6 +2037,88 @@ function coachExportPDF(){
       });
     }catch(err){console.error(err);stEl.textContent='\u274C ZIP error: '+err.message;}
   },100);
+}
+
+// ---- LOGIN LOG (admin) ----
+var _llData=[];
+function renderLoginLog(forceRemote){
+  var srcEl=document.getElementById('ll-source');
+  // Try SharePoint first if admin is Microsoft-connected
+  if(msalReady()&&msalAccount){
+    if(srcEl)srcEl.textContent='Loading from SharePoint\u2026';
+    spToken(function(token){
+      if(!token){loadLocalLog('local (not connected)');return;}
+      spApi('GET',loginLogItemsPath()+"/items?$orderby=LoginAt desc&$top=500",null,token,function(err,data){
+        if(err||!data||!data.value){loadLocalLog('local (SharePoint unavailable)');return;}
+        _llData=data.value.map(function(it){return{who:it.PersonName||it.Title||'',role:it.PersonRole||'',ident:it.Identifier||'',ts:it.LoginAt||''};});
+        if(srcEl)srcEl.textContent='From SharePoint \u2014 '+_llData.length+' logins';
+        renderLoginLogTable();
+      });
+    });
+  } else {
+    loadLocalLog('local (this device)');
+  }
+}
+function loadLocalLog(label){
+  _llData=ld(SK.loginlog,[]).slice().reverse();
+  var srcEl=document.getElementById('ll-source');if(srcEl)srcEl.textContent=label+' \u2014 '+_llData.length+' logins';
+  renderLoginLogTable();
+}
+function renderLoginLogTable(){
+  var srch=(document.getElementById('ll-srch').value||'').toLowerCase();
+  var rf=document.getElementById('ll-role').value;
+  var rows=_llData.filter(function(e){
+    if(rf!=='all'&&e.role!==rf)return false;
+    if(srch&&(e.who||'').toLowerCase().indexOf(srch)<0)return false;
+    return true;
+  });
+  // Stats
+  var totA=0,totC=0,totR=0,uniq={};
+  for(var i=0;i<_llData.length;i++){var e=_llData[i];if(e.role==='admin')totA++;else if(e.role==='coach')totC++;else if(e.role==='rep')totR++;uniq[e.role+'|'+e.who]=1;}
+  document.getElementById('ll-stats').innerHTML=
+    '<div class="sc pu"><div class="val">'+_llData.length+'</div><div class="lbl">Total Logins</div></div>'+
+    '<div class="sc mg"><div class="val">'+Object.keys(uniq).length+'</div><div class="lbl">Unique People</div></div>'+
+    '<div class="sc gr"><div class="val">'+totC+'</div><div class="lbl">Coach Logins</div></div>'+
+    '<div class="sc or"><div class="val">'+totR+'</div><div class="lbl">Rep Logins</div></div>';
+  // Per-person summary (from full data, not filtered)
+  var summ={};
+  for(var s=0;s<_llData.length;s++){var e2=_llData[s];var k=e2.role+'|'+e2.who;
+    if(!summ[k])summ[k]={who:e2.who,role:e2.role,count:0,last:''};
+    summ[k].count++;if(!summ[k].last||e2.ts>summ[k].last)summ[k].last=e2.ts;
+  }
+  var sArr=[];for(var kk in summ)sArr.push(summ[kk]);
+  sArr.sort(function(a,b){return b.last<a.last?-1:1;});
+  var sRows='';
+  for(var si=0;si<sArr.length;si++){var p=sArr[si];
+    if(rf!=='all'&&p.role!==rf)continue;
+    if(srch&&(p.who||'').toLowerCase().indexOf(srch)<0)continue;
+    sRows+='<tr><td><strong>'+esc(p.who)+'</strong></td><td>'+roleBadge(p.role)+'</td><td class="amt">'+p.count+'</td><td style="font-size:12px">'+fmtLLTime(p.last)+'</td></tr>';
+  }
+  document.getElementById('ll-summary').innerHTML=sRows||'<tr><td colspan="4" style="text-align:center;color:var(--gray);padding:20px">No logins yet.</td></tr>';
+  // Full history
+  var bRows='';
+  for(var b=0;b<rows.length&&b<500;b++){var e3=rows[b];
+    bRows+='<tr><td><strong>'+esc(e3.who)+'</strong></td><td>'+roleBadge(e3.role)+'</td><td style="font-size:11px;color:var(--gray)">'+esc(e3.ident)+'</td><td style="font-size:12px">'+fmtLLTime(e3.ts)+'</td></tr>';
+  }
+  document.getElementById('ll-body').innerHTML=bRows||'<tr><td colspan="4" style="text-align:center;color:var(--gray);padding:20px">No logins match.</td></tr>';
+}
+function roleBadge(r){
+  var m={admin:'bt4',coach:'bmg',rep:'b1me'};
+  return '<span class="badge '+(m[r]||'bnt')+'">'+(r?r.toUpperCase():'?')+'</span>';
+}
+function fmtLLTime(iso){
+  if(!iso)return'\u2014';var d=new Date(iso);if(isNaN(d))return esc(iso);
+  return (d.getMonth()+1)+'/'+d.getDate()+'/'+d.getFullYear()+' '+d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+}
+function exportLoginCSV(){
+  if(!_llData.length){showToast('No login data.');return;}
+  var csv='Name,Role,Identifier,Date,Time\n';
+  for(var i=0;i<_llData.length;i++){var e=_llData[i];var d=new Date(e.ts);
+    var dateStr=isNaN(d)?e.ts:(d.getMonth()+1)+'/'+d.getDate()+'/'+d.getFullYear();
+    var timeStr=isNaN(d)?'':d.toLocaleTimeString();
+    csv+='"'+(e.who||'')+'","'+(e.role||'')+'","'+(e.ident||'')+'","'+dateStr+'","'+timeStr+'"\n';}
+  dlFile('login_log.csv',csv,'text/csv');
+  showToast('CSV downloaded.');
 }
 
 // ---- PAY STRUCTURE PAGE (live from rules) ----
