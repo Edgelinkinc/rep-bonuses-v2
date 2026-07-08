@@ -391,8 +391,11 @@ tbody td{padding:10px 12px;white-space:nowrap}
             <select id="t-cat" onchange="renderTier()">
               <option value="all">All</option><option value="voice">Voice Only</option><option value="acc">Acc Only</option>
             </select>
+            <select id="t-dec" onchange="renderTier()">
+              <option value="all">All Reps</option><option value="decel">Decelerated Only</option>
+            </select>
           </div>
-          <div class="tw"><table><thead><tr><th>Rep</th><th>Coach</th><th>Store</th><th>Week</th><th>Voice Tier</th><th>Lines</th><th>Acc Tier</th><th>Acc Profit</th><th>Flag</th></tr></thead>
+          <div class="tw"><table><thead><tr><th>Rep</th><th>Coach</th><th>Store</th><th>Week</th><th>Voice Tier</th><th>Lines</th><th>Acc Tier</th><th>Acc Profit</th><th>95d Retention</th><th>Decel</th><th>Flag</th></tr></thead>
           <tbody id="tier-body"></tbody></table></div>
         </div>
       </div>
@@ -1366,18 +1369,30 @@ function delWk(ws){openConf('Delete week '+ws+'?',function(){sv(SK.weeks,getWeek
 
 // ---- TIER ----
 function fillTierWkSel(){var sel=document.getElementById('t-wk');var wks=getWeeks();sel.innerHTML='<option value="all">All Weeks</option>';wks.sort(function(a,b){return new Date(b.weekStart)-new Date(a.weekStart);});for(var i=0;i<wks.length;i++){var o=document.createElement('option');o.value=wks[i].weekStart;o.textContent=fmtR(wks[i].weekStart,wks[i].weekEnd);sel.appendChild(o);}}
+function retCell(rep,c){
+  if(rep.retention===null||rep.retention===undefined)return '<span style="color:var(--gray)">\u2014</span>';
+  var col=c.voice.decel?'var(--red)':'var(--text)';
+  return '<span style="color:'+col+';font-weight:'+(c.voice.decel?'700':'400')+'">'+rep.retention.toFixed(1)+'%</span>';
+}
+function decelCell(c){
+  return c.voice.decel?'<span style="color:var(--red);font-weight:700">\u25BC 50%</span>':'<span style="color:var(--gray)">\u2014</span>';
+}
 function renderTier(){
   var wf=document.getElementById('t-wk').value,cf=document.getElementById('t-co').value,cat=document.getElementById('t-cat').value;
-  var weeks=getWeeks();var rows='';
+  var df=document.getElementById('t-dec')?document.getElementById('t-dec').value:'all';
+  var weeks=getWeeks();var rows='';var decelCount=0;
   weeks.sort(function(a,b){return new Date(b.weekStart)-new Date(a.weekStart);});
   for(var w=0;w<weeks.length;w++){var wk=weeks[w];if(wf!=='all'&&wk.weekStart!==wf)continue;
     for(var r=0;r<wk.reps.length;r++){var rep=wk.reps[r];if(cf!=='all'&&liveCoach(rep)!==cf)continue;
       var c=calcRep(rep);if(cat==='voice'&&c.voice.tier==='No Tier')continue;if(cat==='acc'&&c.acc.tier==='No Tier')continue;
+      if(df==='decel'&&!c.voice.decel)continue;
+      if(c.voice.decel)decelCount++;
       var flag=c.voice.tier==='No Tier'&&c.acc.tier==='No Tier'?'<span style="color:var(--red);font-weight:700">\uD83D\uDD34 BOTH</span>':c.voice.tier==='No Tier'?'<span style="color:var(--red);font-weight:700">\uD83D\uDD34 ACTS</span>':c.acc.tier==='No Tier'?'<span style="color:var(--red);font-weight:700">\uD83D\uDD34 ACC</span>':'<span style="color:var(--green);font-weight:700">\u2705</span>';
-      rows+='<tr><td><strong>'+esc(rep.full_name)+'</strong></td><td>'+esc(liveCoach(rep))+'</td><td>'+esc(liveStore(rep)||'\u2014')+'</td><td style="font-size:11px;color:var(--gray)">'+fmtR(wk.weekStart,wk.weekEnd)+'</td><td>'+tb(c.voice.tier)+'</td><td>'+c.voice.lines+'</td><td>'+tb(c.acc.tier)+'</td><td>'+fmt(rep.totaccessoryprofit)+'</td><td>'+flag+'</td></tr>';
+      var rowStyle=c.voice.decel?' style="background:#fff5f5"':'';
+      rows+='<tr'+rowStyle+'><td><strong>'+esc(rep.full_name)+'</strong></td><td>'+esc(liveCoach(rep))+'</td><td>'+esc(liveStore(rep)||'\u2014')+'</td><td style="font-size:11px;color:var(--gray)">'+fmtR(wk.weekStart,wk.weekEnd)+'</td><td>'+tb(c.voice.tier)+'</td><td>'+c.voice.lines+'</td><td>'+tb(c.acc.tier)+'</td><td>'+fmt(rep.totaccessoryprofit)+'</td><td>'+retCell(rep,c)+'</td><td>'+decelCell(c)+'</td><td>'+flag+'</td></tr>';
     }
   }
-  document.getElementById('tier-body').innerHTML=rows||'<tr><td colspan="9" style="text-align:center;color:var(--gray);padding:20px">No data.</td></tr>';
+  document.getElementById('tier-body').innerHTML=rows||'<tr><td colspan="11" style="text-align:center;color:var(--gray);padding:20px">No data.</td></tr>';
 }
 </script>
 
@@ -2079,6 +2094,7 @@ function exportPayoutPDF(){
 // ---- TIER ACHIEVEMENT EXPORT ----
 function tierRows(){
   var wf=document.getElementById('t-wk').value,cf=document.getElementById('t-co').value,cat=document.getElementById('t-cat').value;
+  var df=document.getElementById('t-dec')?document.getElementById('t-dec').value:'all';
   var weeks=getWeeks();var out=[];
   weeks.sort(function(a,b){return new Date(b.weekStart)-new Date(a.weekStart);});
   for(var w=0;w<weeks.length;w++){var wk=weeks[w];if(wf!=='all'&&wk.weekStart!==wf)continue;
@@ -2086,18 +2102,21 @@ function tierRows(){
       var c=calcRep(rep);
       if(cat==='voice'&&c.voice.tier==='No Tier')continue;
       if(cat==='acc'&&c.acc.tier==='No Tier')continue;
+      if(df==='decel'&&!c.voice.decel)continue;
       var flag=c.voice.tier==='No Tier'&&c.acc.tier==='No Tier'?'BOTH':c.voice.tier==='No Tier'?'ACTS':c.acc.tier==='No Tier'?'ACC':'OK';
+      var retStr=(rep.retention===null||rep.retention===undefined)?'':rep.retention.toFixed(1);
       out.push({name:rep.full_name,coach:liveCoach(rep),store:liveStore(rep),week:fmtR(wk.weekStart,wk.weekEnd),
-        vtier:c.voice.tier,lines:c.voice.lines,atier:c.acc.tier,profit:rep.totaccessoryprofit||0,flag:flag});
+        vtier:c.voice.tier,lines:c.voice.lines,atier:c.acc.tier,profit:rep.totaccessoryprofit||0,
+        retention:retStr,decel:c.voice.decel?'YES':'',flag:flag});
     }
   }
   return out;
 }
 function exportTierCSV(){
   var rows=tierRows();if(!rows.length){showToast('No data to export.');return;}
-  var csv='Rep Name,Coach,Store,Week,Voice Tier,Total Lines,Acc Tier,Acc Profit,Flag\n';
+  var csv='Rep Name,Coach,Store,Week,Voice Tier,Total Lines,Acc Tier,Acc Profit,95d Retention %,Decelerated,Flag\n';
   for(var i=0;i<rows.length;i++){var r=rows[i];
-    csv+='"'+r.name+'","'+r.coach+'","'+r.store+'","'+r.week+'","'+r.vtier+'",'+r.lines+',"'+r.atier+'",'+r.profit.toFixed(2)+',"'+r.flag+'"\n';}
+    csv+='"'+r.name+'","'+r.coach+'","'+r.store+'","'+r.week+'","'+r.vtier+'",'+r.lines+',"'+r.atier+'",'+r.profit.toFixed(2)+',"'+r.retention+'","'+r.decel+'","'+r.flag+'"\n';}
   dlFile('Tier_Achievement.csv',csv,'text/csv');
   showToast('CSV downloaded.');
 }
@@ -2110,23 +2129,25 @@ function exportTierPDF(){
   doc.setTextColor(255,255,255);doc.setFont('helvetica','bold');doc.setFontSize(18);doc.text('EDGELINK',M+10,y+22);
   doc.setFontSize(8);doc.setFont('helvetica','normal');doc.text('TIER ACHIEVEMENT REPORT',M+10,y+34);
   doc.setFontSize(9);doc.text(new Date().toLocaleDateString(),PW-M-10,y+24,{align:'right'});y+=48;
-  var cols=['Rep','Coach','Store','Week','Voice Tier','Lines','Acc Tier','Acc Profit','Flag'];
-  var cx=[M,160,255,395,500,555,595,650,710];
+  var cols=['Rep','Coach','Store','Week','V.Tier','Lines','A.Tier','A.Profit','95d Ret','Decel','Flag'];
+  var cx=[M,150,235,360,455,500,540,585,640,685,730];
   doc.setFillColor(240,240,245);doc.rect(M,y,PW-M*2,14,'F');
   doc.setTextColor(74,27,92);doc.setFont('helvetica','bold');doc.setFontSize(7);
   for(var h=0;h<cols.length;h++)doc.text(cols[h],cx[h]+2,y+10);
   y+=15;doc.setFontSize(7);
   for(var i=0;i<rows.length;i++){
     if(y>PH-M-20){doc.addPage();y=M;}
-    var r=rows[i];var bg=i%2===0?[255,255,255]:[248,248,252];
+    var r=rows[i];var bg=r.decel==='YES'?[255,240,240]:(i%2===0?[255,255,255]:[248,248,252]);
     doc.setFillColor(bg[0],bg[1],bg[2]);doc.rect(M,y,PW-M*2,12,'F');
     var fc=r.flag==='OK'?[46,125,50]:[200,0,0];
     doc.setTextColor(30,30,30);doc.setFont('helvetica','normal');
-    var nm=r.name.length>26?r.name.substring(0,24)+'..':r.name;
-    var st=r.store.length>24?r.store.substring(0,22)+'..':r.store;
+    var nm=r.name.length>24?r.name.substring(0,22)+'..':r.name;
+    var st=r.store.length>18?r.store.substring(0,16)+'..':r.store;
     doc.text(nm,cx[0]+2,y+9);doc.text(r.coach,cx[1]+2,y+9);doc.text(st,cx[2]+2,y+9);doc.text(r.week,cx[3]+2,y+9);
     doc.text(r.vtier,cx[4]+2,y+9);doc.text(String(r.lines),cx[5]+2,y+9);doc.text(r.atier,cx[6]+2,y+9);doc.text(fmt(r.profit),cx[7]+2,y+9);
-    doc.setTextColor(fc[0],fc[1],fc[2]);doc.setFont('helvetica','bold');doc.text(r.flag,cx[8]+2,y+9);
+    doc.text(r.retention?r.retention+'%':'-',cx[8]+2,y+9);
+    if(r.decel==='YES'){doc.setTextColor(200,0,0);doc.setFont('helvetica','bold');doc.text('50%',cx[9]+2,y+9);doc.setFont('helvetica','normal');doc.setTextColor(30,30,30);}else{doc.text('-',cx[9]+2,y+9);}
+    doc.setTextColor(fc[0],fc[1],fc[2]);doc.setFont('helvetica','bold');doc.text(r.flag,cx[10]+2,y+9);
     y+=12;
   }
   doc.save('Tier_Achievement.pdf');
