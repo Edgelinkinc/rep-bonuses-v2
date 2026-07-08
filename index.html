@@ -1065,6 +1065,9 @@ function renderMyPay(){
   var c=calcRep(rd);var cbd=cbForWeek(rd.ntid,wk.weekStart);var net=Math.max(0,c.weeklyBonus-cbd.total);
   document.getElementById('db').className='db'+(c.voice.decel?' show':'');
   var r=getRules();var tmax=r.vt[r.vt.length-1].min+10;var pct=Math.min(100,(c.voice.lines/tmax)*100);
+  var accProfit=rd.totaccessoryprofit||0;
+  var accMax=r.at[r.at.length-1].min;
+  var accPct=accMax>0?Math.min(100,(accProfit/accMax)*100):0;
   var pvp=c.voice.idx>=0?r.vt[c.voice.idx].pay:0;
   se.innerHTML=
     '<div class="sc mg"><div class="val">'+fmt(c.weeklyBonus)+'</div><div class="lbl">Weekly Bonus</div></div>'+
@@ -1075,12 +1078,15 @@ function renderMyPay(){
   for(var ci=0;ci<cbd.items.length;ci++){var it=cbd.items[ci];cbL+='<div class="br cb"><span class="bl">\u26A0\uFE0F Reason: '+esc(it.category)+(it.notes?' \u2014 '+esc(it.notes):'')+' ('+fmtD(it.date)+')</span><span class="bv">-'+fmt(it.amount)+'</span></div>';}
   be.innerHTML=
     '<div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">'+
-    '<span style="font-size:13px;font-weight:600">Voice Tier: '+c.voice.tier+' ('+c.voice.lines+' lines)</span>'+tb(c.voice.tier)+
+    '<span style="font-size:13px;font-weight:600">Voice Tier: '+tierLabel(c.voice.tier)+' ('+c.voice.lines+' lines)</span>'+tb(c.voice.tier)+
     '</div><div class="tbw"><div class="tb" style="width:'+pct+'%"></div></div></div>'+
+    '<div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">'+
+    '<span style="font-size:13px;font-weight:600">Accessory Tier: '+tierLabel(c.acc.tier)+' ('+fmt(accProfit)+' net profit'+(c.acc.pct>0?' \u2014 '+c.acc.pct+'%':'')+')</span>'+tb(c.acc.tier)+
+    '</div><div class="tbw"><div class="tb" style="width:'+accPct+'%"></div></div></div>'+
     '<div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--purple);margin:8px 0 6px">Weekly Bonus</div>'+
     '<div class="br"><span class="bl">New Voice Acts ('+Math.max(0,rd.voice_acts||0)+' \u00D7 $'+pvp+')</span><span class="bv">'+fmt(c.voice.payout)+'</span></div>'+
     '<div class="br"><span class="bl">MIM Lines ('+(rd.mim_acts||0)+' \u00D7 $'+r.mpp+')</span><span class="bv">'+fmt(c.mim)+'</span></div>'+
-    '<div class="br"><span class="bl">Accessories ('+c.acc.tier+' \u2014 '+c.acc.pct+'%)</span><span class="bv">'+fmt(c.acc.payout)+'</span></div>'+
+    '<div class="br"><span class="bl">Accessories ('+tierLabel(c.acc.tier)+' \u2014 '+fmt(accProfit)+' net profit \u00D7 '+c.acc.pct+'%)</span><span class="bv">'+fmt(c.acc.payout)+'</span></div>'+
     '<div class="br"><span class="bl">Upgrades ('+(rd.upgrade_count||0)+' \u00D7 $'+r.upg+')</span><span class="bv">'+fmt(c.upg)+'</span></div>'+
     '<div class="br tot"><span class="bl">WEEKLY BONUS TOTAL</span><span class="bv">'+fmt(c.weeklyBonus)+'</span></div>'+
     '<div class="arcs"><div class="at">\uD83D\uDD79 Arcade Daily (Paid Separately \u2014 Not in Weekly Bonus)</div>'+
@@ -1100,7 +1106,7 @@ function renderMyPay(){
     wR+='<div class="br"><span class="bl">Week of '+fmtD(wk2.weekStart)+'</span><span class="bv">'+fmt(Math.max(0,wc.weeklyBonus-wCB.total))+'</span></div>';
   }}
   me.innerHTML=wR+'<div class="br tot"><span class="bl">MONTHLY BONUS GROSS</span><span class="bv">'+fmt(mB)+'</span></div>'+
-    (mC>0?'<div class="br cb"><span class="bl">Total CB Deductions</span><span class="bv">-'+fmt(mC)+'</span></div>':'')+
+    '<div class="br cb"><span class="bl" style="font-weight:700">Total Monthly Chargebacks</span><span class="bv">-'+fmt(mC)+'</span></div>'+
     '<div class="br net"><span class="bl">MONTHLY NET</span><span class="bv">'+fmt(Math.max(0,mB-mC))+'</span></div>';
 }
 
@@ -1706,6 +1712,33 @@ function drawSlip(doc,rep,week){
     doc.setTextColor(133,100,4);doc.setFont('helvetica','bold');doc.setFontSize(9);
     doc.text('Outstanding Chargeback Balance: '+fmt(totBal),M+8,y+13);y+=22;
   }
+  // ── MONTH-TO-DATE SUMMARY ── (same calendar month as this slip's week)
+  var slipMonth=week.weekStart.substring(0,7); // YYYY-MM
+  var mtdBonus=0,mtdCB=0;var allWeeks=getWeeks();
+  for(var mw=0;mw<allWeeks.length;mw++){
+    var wkm=allWeeks[mw];if(wkm.weekStart.substring(0,7)!==slipMonth)continue;
+    for(var mr=0;mr<wkm.reps.length;mr++){
+      if(wkm.reps[mr].ntid.toLowerCase()!==rep.ntid.toLowerCase())continue;
+      mtdBonus+=calcRep(wkm.reps[mr]).weeklyBonus;
+      mtdCB+=cbForWeek(rep.ntid,wkm.weekStart).total;
+    }
+  }
+  var mtdNet=Math.max(0,mtdBonus-mtdCB);
+  y+=4;
+  doc.setFillColor(74,27,92);doc.rect(M,y,PW-M*2,16,'F');
+  doc.setTextColor(255,255,255);doc.setFont('helvetica','bold');doc.setFontSize(9);
+  doc.text('MONTH-TO-DATE SUMMARY ('+slipMonth+')',M+6,y+12);y+=18;
+  var mRows=[['Monthly Bonus Gross',fmt(mtdBonus)],['Total Monthly Chargebacks','-'+fmt(mtdCB)]];
+  for(var mi=0;mi<mRows.length;mi++){
+    doc.setFillColor(mi%2===0?248:255,mi%2===0?248:255,mi%2===0?252:255);doc.rect(M,y,PW-M*2,15,'F');
+    doc.setFont('helvetica','normal');
+    if(mi===1){doc.setTextColor(180,0,0);}else{doc.setTextColor(30,30,30);}
+    doc.text(mRows[mi][0],CX[0]+4,y+11);
+    doc.setFont('helvetica','bold');doc.text(mRows[mi][1],CX[2],y+11);y+=16;
+  }
+  doc.setFillColor(52,199,89);doc.rect(M,y,PW-M*2,20,'F');
+  doc.setTextColor(255,255,255);doc.setFont('helvetica','bold');doc.setFontSize(11);
+  doc.text('MONTHLY NET',CX[0]+4,y+14);doc.text(fmt(mtdNet),CX[2],y+14);y+=26;
   doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(150,150,150);
   doc.text('EdgeLink Inc. | hr@edgelincinc.com | 423-747-0429 | 719 Bald Hill Rd, Warwick RI 02886',PW/2,PH-M-8,{align:'center'});
 }
