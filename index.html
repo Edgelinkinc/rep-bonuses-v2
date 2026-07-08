@@ -574,6 +574,9 @@ function getMsal(){
   });
   return msalApp;
 }
+function isMobile(){
+  return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent||'')||(window.innerWidth&&window.innerWidth<768);
+}
 
 // ═══ SHAREPOINT SYNC (JSON blobs in Settings list) ═══
 var SYNC_KEYS=null;
@@ -696,12 +699,23 @@ function updateSyncBadge(){
 }
 function adminMsConnect(){
   if(!msalReady()){showToast('Paste the Azure app client ID into SP_CONFIG first.');return;}
+  if(isMobile()){
+    try{localStorage.setItem('elb_ms_intent','admin');}catch(e){}
+    getMsal().loginRedirect({scopes:['User.Read']});
+    return;
+  }
   getMsal().loginPopup({scopes:['User.Read']}).then(function(res){
     msalAccount=res.account;
     showToast('Connected as '+res.account.username);
     updateSyncBadge();
     spPull(function(ok){if(ok){showToast('Data loaded from SharePoint.');if(role==='admin')renderAH();}});
   }).catch(function(e){console.error(e);showToast('Sign-in failed.');});
+}
+function completeAdminConnect(account){
+  msalAccount=account;
+  showToast('Connected as '+account.username);
+  updateSyncBadge();
+  spPull(function(ok){if(ok){showToast('Data loaded from SharePoint.');if(role==='admin')renderAH();}});
 }
 var SK={weeks:'elb_wks',roster:'elb_ros',stores:'elb_sto',rules:'elb_rul',cb:'elb_cb',cats:'elb_cats',cemails:'elb_cemails',coaches:'elb_coaches'};
 var DEF_CATS=['XBM','RMA','SIM Card','Cash Shortage'];
@@ -838,6 +852,12 @@ function coachMsLogin(){
     errEl.textContent='Microsoft sign-in not configured yet. Use the backup PIN.';
     errEl.style.display='block';return;
   }
+  if(isMobile()){
+    // Mobile: whole-page redirect (popups fail on phone browsers)
+    try{localStorage.setItem('elb_ms_intent','coach');}catch(e){}
+    getMsal().loginRedirect({scopes:['User.Read']});
+    return;
+  }
   getMsal().loginPopup({scopes:['User.Read']}).then(function(res){
     msalAccount=res.account;
     var email=(res.account.username||'').toLowerCase();
@@ -852,6 +872,18 @@ function coachMsLogin(){
     errEl.textContent='Microsoft sign-in failed: '+(e.errorCode||e.message||'unknown');
     errEl.style.display='block';
   });
+}
+// Given a signed-in MSAL account, resolve to a coach and enter coach view.
+function completeCoachLogin(account){
+  var errEl=document.getElementById('c-ms-err');
+  msalAccount=account;
+  var email=(account.username||'').toLowerCase();
+  var emailMap=getCoachEmails();var coach=emailMap[email]||null;
+  if(!coach){
+    if(errEl){errEl.textContent='Signed in as '+email+' but that email is not mapped to a coach. Contact HR.';errEl.style.display='block';}
+    return false;
+  }
+  myCoachName=coach;role='coach';launchApp();return true;
 }
 function showStructurePublic(){document.getElementById('pub-structure').style.display='block';document.getElementById('pub-structure-content').innerHTML=buildStructureHTML();}
 function hideStructurePublic(){document.getElementById('pub-structure').style.display='none';}
@@ -1108,12 +1140,13 @@ function repBreakdownHTML(rd,wk){
   var decelBanner=c.voice.decel?'<div style="background:#fff3cd;border:1px solid #ffc107;border-radius:10px;padding:10px 14px;font-size:12px;font-weight:600;color:#856404;margin-bottom:12px">\u26A0\uFE0F 50% Decelerator Applied \u2014 95-day retention ('+(rd.retention!==null&&rd.retention!==undefined?rd.retention.toFixed(1)+'%':'n/a')+') is below '+r.drt+'%</div>':'';
   var cbL='';
   for(var ci=0;ci<cbd.items.length;ci++){var it=cbd.items[ci];cbL+='<div class="br cb"><span class="bl">\u26A0\uFE0F Reason: '+esc(it.category)+(it.notes?' \u2014 '+esc(it.notes):'')+' ('+fmtD(it.date)+')</span><span class="bv">-'+fmt(it.amount)+'</span></div>';}
-  var stats=
-    '<div class="sg">'+
+  var statCards=
     '<div class="sc mg"><div class="val">'+fmt(c.weeklyBonus)+'</div><div class="lbl">Weekly Bonus</div></div>'+
     '<div class="sc rd"><div class="val">'+fmt(cbd.total)+'</div><div class="lbl">Chargebacks</div></div>'+
     '<div class="sc gr"><div class="val">'+fmt(net)+'</div><div class="lbl">Net Payout</div></div>'+
-    '<div class="sc or"><div class="val">'+fmt(c.arcade)+'</div><div class="lbl">Arcade Daily</div></div></div>';
+    '<div class="sc or"><div class="val">'+fmt(c.arcade)+'</div><div class="lbl">Arcade Daily</div></div>';
+  var stats=statCards; // bare cards for #mp-stats (already a .sg grid)
+  var statsWrapped='<div class="sg">'+statCards+'</div>'; // for containers that aren't grids (coach modal)
   var breakdown=
     '<div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">'+
     '<span style="font-size:13px;font-weight:600">Voice Tier: '+tierLabel(c.voice.tier)+' ('+c.voice.lines+' lines)</span>'+tb(c.voice.tier)+
@@ -1147,7 +1180,7 @@ function repBreakdownHTML(rd,wk){
   var monthly=wR+'<div class="br tot"><span class="bl">MONTHLY BONUS GROSS</span><span class="bv">'+fmt(mB)+'</span></div>'+
     '<div class="br cb"><span class="bl" style="font-weight:700">Total Monthly Chargebacks</span><span class="bv">-'+fmt(mC)+'</span></div>'+
     '<div class="br net"><span class="bl">MONTHLY NET</span><span class="bv">'+fmt(Math.max(0,mB-mC))+'</span></div>';
-  return {stats:stats,decel:decelBanner,breakdown:breakdown,monthly:monthly};
+  return {stats:stats,statsWrapped:statsWrapped,decel:decelBanner,breakdown:breakdown,monthly:monthly};
 }
 
 // Coach: open a rep's full breakdown in a modal (same view the rep sees)
@@ -1158,7 +1191,7 @@ function coachViewRep(ntid){
   var b=repBreakdownHTML(rd,wk);
   document.getElementById('mo-rep-view-name').textContent=rd.full_name+'  \u2014  '+liveCoach(rd)+'  \u2022  '+(liveStore(rd)||'No store');
   document.getElementById('mo-rep-view-body').innerHTML=
-    b.decel+b.stats+
+    b.decel+b.statsWrapped+
     '<div class="card" style="box-shadow:none;border:1px solid var(--gl);margin-bottom:12px"><div class="ct">Weekly Bonus Breakdown</div>'+b.breakdown+'</div>'+
     '<div class="card" style="box-shadow:none;border:1px solid var(--gl);margin-bottom:0"><div class="ct">Monthly Running Total</div>'+b.monthly+'</div>';
   om('mo-rep-view');
@@ -2223,18 +2256,9 @@ if(typeof msal==='undefined')document.write(unescape("%3Cscript src='https://alc
 if(typeof msal==='undefined')document.write(unescape("%3Cscript src='https://alcdn.msftauth.net/browser/2.38.3/js/msal-browser.min.js'%3E%3C/script%3E"));
 </script>
 <script>
-window.addEventListener('load',function(){
-  if(window.jspdf&&window.jspdf.jsPDF)window.jsPDF=window.jspdf.jsPDF;
-  // Restore Microsoft session if present, then pull latest data from SharePoint
-  try{
-    if(msalReady()){
-      var accts=getMsal().getAllAccounts();
-      if(accts&&accts.length){msalAccount=accts[0];}
-    }
-  }catch(e){console.error(e);}
+function afterMsRestore(){
   spPull(function(ok){
     if(ok){
-      // refresh whatever view is open
       if(role==='admin')renderAH();
       if(role==='coach')renderCoachAll();
       if(role==='rep')renderMyPay();
@@ -2243,6 +2267,29 @@ window.addEventListener('load',function(){
       if(wk&&swEl)swEl.textContent=fmtR(wk.weekStart,wk.weekEnd);
     }
     updateSyncBadge();
+  });
+}
+window.addEventListener('load',function(){
+  if(window.jspdf&&window.jspdf.jsPDF)window.jsPDF=window.jspdf.jsPDF;
+  if(!msalReady()){afterMsRestore();return;}
+  // Handle a returning redirect sign-in (mobile flow) BEFORE anything else.
+  getMsal().handleRedirectPromise().then(function(result){
+    var intent='';try{intent=localStorage.getItem('elb_ms_intent')||'';}catch(e){}
+    if(result&&result.account){
+      try{localStorage.removeItem('elb_ms_intent');}catch(e){}
+      if(intent==='coach'){completeCoachLogin(result.account);afterMsRestore();return;}
+      if(intent==='admin'){completeAdminConnect(result.account);afterMsRestore();return;}
+      // No intent but we have an account — just remember it
+      msalAccount=result.account;
+    } else {
+      // No redirect result — restore any cached account
+      try{var accts=getMsal().getAllAccounts();if(accts&&accts.length)msalAccount=accts[0];}catch(e2){}
+    }
+    afterMsRestore();
+  }).catch(function(e){
+    console.error('redirect promise',e);
+    try{var accts2=getMsal().getAllAccounts();if(accts2&&accts2.length)msalAccount=accts2[0];}catch(e3){}
+    afterMsRestore();
   });
 });
 </script>
