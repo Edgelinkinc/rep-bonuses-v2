@@ -1994,7 +1994,14 @@ document.getElementById('r-last').addEventListener('keydown',function(e){if(e.ke
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/msal-browser/2.38.3/msal-browser.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.3/lib/msal-browser.min.js"></script>
+<script>
+// Fallback chain if jsDelivr is blocked: Microsoft primary CDN, then Microsoft alternate
+if(typeof msal==='undefined')document.write(unescape("%3Cscript src='https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js'%3E%3C/script%3E"));
+</script>
+<script>
+if(typeof msal==='undefined')document.write(unescape("%3Cscript src='https://alcdn.msftauth.net/browser/2.38.3/js/msal-browser.min.js'%3E%3C/script%3E"));
+</script>
 <script>
 window.addEventListener('load',function(){
   if(window.jspdf&&window.jspdf.jsPDF)window.jsPDF=window.jspdf.jsPDF;
