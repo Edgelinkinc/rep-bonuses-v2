@@ -311,6 +311,14 @@ tbody td{padding:10px 12px;white-space:nowrap}
               <input type="file" id="f-csv" accept=".csv" style="display:none" onchange="hf(this,'csv')">
               <div class="fs pnd" id="st-csv">&#9203; Awaiting upload</div>
             </div>
+            <div>
+              <div class="sl">4 &mdash; 95-Day Retention (.xlsx)</div>
+              <div class="uz" id="zone-ret" onclick="document.getElementById('f-ret').click()" ondragover="dov(event,'zone-ret')" ondragleave="dlv('zone-ret')" ondrop="dop(event,'ret')">
+                <div class="ui">&#128202;</div><p>Click or drag to upload</p><div class="un" id="ret-nm">*_Day_Retention_*.xlsx</div>
+              </div>
+              <input type="file" id="f-ret" accept=".xlsx" style="display:none" onchange="hf(this,'ret')">
+              <div class="fs pnd" id="st-ret">&#9203; Optional \u2014 drives decelerator</div>
+            </div>
           </div>
           <div style="margin-top:20px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
             <div style="display:flex;align-items:center;gap:8px">
@@ -703,7 +711,7 @@ function getEditableCoaches(){
 
 
 var role=null,curRep=null,editRepIdx=-1,editStoreIdx=-1,activeCBIdx=-1,confCBfn=null;
-var rawF={pbi:null,emp:null,csv:null};
+var rawF={pbi:null,emp:null,csv:null,ret:null};
 
 // ---- SEED DATA (from WFO rosters) ----
 var SEED_STORES=[{"store": "AR-COLONEL GLENN", "state": "AR", "tier": "1ME", "manager": "Karmina Mendoza", "coach": "TBD"}, {"store": "AR-RADIO GEYER", "state": "AR", "tier": "2ME", "manager": "Karmina Mendoza", "coach": "TBD"}, {"store": "CT-BUCKLAND HILLS MALL", "state": "CT", "tier": "2ME", "manager": "Nereida Rodriquez", "coach": "TBD"}, {"store": "CT-NEW LONDON", "state": "CT", "tier": "2ME", "manager": "Josh Landry", "coach": "TBD"}, {"store": "CT-NORWICH", "state": "CT", "tier": "1ME", "manager": "Josh Landry", "coach": "TBD"}, {"store": "MA-SOUTH SHORE MALL", "state": "MA", "tier": "2ME", "manager": "Amina Fellah", "coach": "Rose Perez"}, {"store": "MA-CAPE COD MALL", "state": "MA", "tier": "2ME", "manager": "TBD", "coach": "Ambulai Sheku"}, {"store": "MA-COGGESHALL", "state": "MA", "tier": "2ME", "manager": "Napoleao Dacruz", "coach": "Manny Rivera"}, {"store": "MA-EXCHANGE ST", "state": "MA", "tier": "1ME", "manager": "Jazmine Heredia", "coach": "Joel Montero"}, {"store": "MA-FALLRIVER", "state": "MA", "tier": "2ME", "manager": "TBD", "coach": "Manny Rivera"}, {"store": "MA-HOLYOKE", "state": "MA", "tier": "2ME", "manager": "Carlos Davila", "coach": "Joel Montero"}, {"store": "MA-KELLEY SQUARE", "state": "MA", "tier": "2ME", "manager": "Alex Correa", "coach": "Rose Perez"}, {"store": "MA-LOCUST STREET", "state": "MA", "tier": "1ME", "manager": "Alicia Montero", "coach": "Joel Montero"}, {"store": "MA-ORANGE STREET", "state": "MA", "tier": "1ME", "manager": "TBD", "coach": "TBD"}, {"store": "MA-ROCKDALE", "state": "MA", "tier": "2ME", "manager": "Lori Ruiz", "coach": "Manny Rivera"}, {"store": "MA-STATE STREET", "state": "MA", "tier": "1ME", "manager": "Jessica Ratamar", "coach": "Joel Montero"}, {"store": "MA-WESTERN AVE", "state": "MA", "tier": "2ME", "manager": "Amina Fellah", "coach": "Rose Perez"}, {"store": "RI-751 BROAD", "state": "RI", "tier": "1ME", "manager": "Keysha Bettencourt", "coach": "Rose Perez"}, {"store": "RI-BALD HILL", "state": "RI", "tier": "2ME", "manager": "Allia Abodaher", "coach": "TBD"}, {"store": "RI-BROAD ST", "state": "RI", "tier": "2ME", "manager": "TBD", "coach": "Rose Perez"}, {"store": "RI-BROADWAY", "state": "RI", "tier": "1ME", "manager": "TBD", "coach": "Ambulai Sheku"}, {"store": "RI-COVENTRY", "state": "RI", "tier": "1ME", "manager": "Chris Paul Pierre", "coach": "Ambulai Sheku"}, {"store": "RI-DOUGLAS", "state": "RI", "tier": "1ME", "manager": "Chris Paul Pierre", "coach": "Ambulai Sheku"}, {"store": "RI-EAST PROVIDENCE", "state": "RI", "tier": "2ME", "manager": "Saimary Hernandez", "coach": "TBD"}, {"store": "RI-HARTFORD AVE", "state": "RI", "tier": "2ME", "manager": "Yanna Sorano", "coach": "Rose Perez"}, {"store": "RI-NEWPORT AVE", "state": "RI", "tier": "1ME", "manager": "Saimary Hernandez", "coach": "Rose Perez"}, {"store": "RI-PROVIDENCE PLACE MALL", "state": "RI", "tier": "2ME", "manager": "TBD", "coach": "Rose Perez"}, {"store": "RI-RESERVOIR AVE", "state": "RI", "tier": "2ME", "manager": "Daniel Rosales", "coach": "Ambulai Sheku"}, {"store": "TN-KEITH ST", "state": "TN", "tier": "1ME", "manager": "Mirtha", "coach": "Mr. Watts"}, {"store": "TN-MAGNOLIA", "state": "TN", "tier": "2ME", "manager": "Mel Mcallister", "coach": "Mr. Watts"}, {"store": "TN-MORRISTOWN", "state": "TN", "tier": "1ME", "manager": "Franchesca Rader", "coach": "Mr. Watts"}, {"store": "TN-NORTH BROADWAY", "state": "TN", "tier": "2ME", "manager": "Franchesca Rader", "coach": "Mr. Watts"}, {"store": "TN-SHALLOWFORD RD", "state": "TN", "tier": "2ME", "manager": "Marquesha Jones", "coach": "Mr. Watts"}, {"store": "TN-WEST MARKET", "state": "TN", "tier": "1ME", "manager": "Charsima Heggie", "coach": "Cheryl"}, {"store": "TN-WESTERN AVE", "state": "TN", "tier": "1ME", "manager": "TBD", "coach": "Mr. Watts"}];
@@ -961,7 +969,15 @@ function processRpts(){
       rdCSV(rawF.csv,function(csv){
         if(!csv){st.textContent='\u274C Failed to read CSV.';return;}
         setSt('csv','ok','\u2713 '+csv.length+' rows');
-        mergeAndSave(pbi,emp,csv,ws,we,st);
+        if(rawF.ret){
+          rdXLSX(rawF.ret,function(ret){
+            if(!ret){st.textContent='\u274C Failed to read Retention file.';return;}
+            setSt('ret','ok','\u2713 '+ret.length+' rows');
+            mergeAndSave(pbi,emp,csv,ws,we,st,ret);
+          });
+        } else {
+          mergeAndSave(pbi,emp,csv,ws,we,st,null);
+        }
       });
     });
   });
@@ -981,7 +997,21 @@ function pCSV(text){
 }
 function splCSV(ln){var r=[],c='',q=false;for(var i=0;i<ln.length;i++){var ch=ln[i];if(ch==='"'){q=!q;}else if(ch===','&&!q){r.push(c);c='';}else{c+=ch;}}r.push(c);return r;}
 
-function mergeAndSave(pbi,emp,csv,ws,we,stEl){
+function mergeAndSave(pbi,emp,csv,ws,we,stEl,ret){
+  // Build retention map: NTID -> 95-day retention as a PERCENT (file stores decimals like 0.76)
+  var rm={};
+  if(ret&&ret.length){
+    for(var ri0=0;ri0<ret.length;ri0++){
+      var rr0=ret[ri0];var nm0=String(rr0['Employee Name']||'');if(!nm0)continue;
+      var mm0=nm0.match(/\(([^)]+)\)/);if(!mm0)continue;
+      var rnt=mm0[1].toLowerCase();if(!rnt||rnt==='~'||rnt==='elb')continue;
+      var raw=rr0['95Day DCS Retention'];
+      if(raw===undefined||raw===null||raw==='')continue;
+      var val=parseFloat(raw);if(isNaN(val))continue;
+      // Decimal (<=1) -> percent; already-percent values (>1) kept as-is
+      rm[rnt]=val<=1?val*100:val;
+    }
+  }
   var pm={};
   for(var i=0;i<pbi.length;i++){
     var row=pbi[i];var nr=String(row['Employee Name']||'');if(!nr)continue;
@@ -1003,7 +1033,7 @@ function mergeAndSave(pbi,emp,csv,ws,we,stEl){
   for(var n=0;n<keys.length;n++){
     var ntid2=keys[n];var b=pm[ntid2];var ri=getRosterRep(ntid2);
     b.totaccessoryprofit=em[ntid2]||0;b.upgrade_count=um[ntid2]||0;
-    b.coach=ri?ri.coach:'TBD';b.home_store=ri?ri.store:'';b.retention=null;
+    b.coach=ri?ri.coach:'TBD';b.home_store=ri?ri.store:'';b.retention=(rm[ntid2]!==undefined?rm[ntid2]:null);
     if(!ri){
       roster.push({ntid:ntid2,name:b.full_name,state:'',store:'',coach:'TBD',needsReview:true});
       newReps++;
@@ -1018,7 +1048,8 @@ function mergeAndSave(pbi,emp,csv,ws,we,stEl){
   weeks.push({weekStart:ws,weekEnd:we,reps:reps,loadedAt:new Date().toISOString(),grossBonus:gross,arcadeTotal:arc});
   sv(SK.weeks,weeks);
   document.getElementById('sw').textContent=fmtR(ws,we);
-  stEl.textContent='\u2705 Processed '+reps.length+' reps for '+fmtR(ws,we)+(newReps>0?' \u2014 \u26A0\uFE0F '+newReps+' NEW rep(s) auto-added to roster. Assign coach/store in Rosters.':'');
+  var retCount=0;for(var rc0=0;rc0<reps.length;rc0++){if(reps[rc0].retention!==null&&reps[rc0].retention!==undefined)retCount++;}
+  stEl.textContent='\u2705 Processed '+reps.length+' reps for '+fmtR(ws,we)+(ret?' \u2014 retention loaded for '+retCount+' rep(s)':' \u2014 no retention file (decelerator off)')+(newReps>0?' \u2014 \u26A0\uFE0F '+newReps+' NEW rep(s) auto-added to roster.':'');
   renderWkTable();showToast(newReps>0?'Week loaded! \u26A0\uFE0F '+newReps+' new rep(s) need coach/store assignment.':'Week loaded!');fillExportWk();fillExportRep();
 }
 
@@ -1064,6 +1095,7 @@ function renderMyPay(){
   if(!rd){se.innerHTML='<p style="color:var(--gray);padding:20px">No data found for your NTID.</p>';be.innerHTML='';me.innerHTML='';return;}
   var c=calcRep(rd);var cbd=cbForWeek(rd.ntid,wk.weekStart);var net=Math.max(0,c.weeklyBonus-cbd.total);
   document.getElementById('db').className='db'+(c.voice.decel?' show':'');
+  if(c.voice.decel){document.getElementById('db').innerHTML='\u26A0\uFE0F 50% Decelerator Applied \u2014 95-day retention ('+(rd.retention!==null&&rd.retention!==undefined?rd.retention.toFixed(1)+'%':'n/a')+') is below '+r.drt+'%';}
   var r=getRules();var tmax=r.vt[r.vt.length-1].min+10;var pct=Math.min(100,(c.voice.lines/tmax)*100);
   var accProfit=rd.totaccessoryprofit||0;
   var accMax=r.at[r.at.length-1].min;
@@ -1882,7 +1914,7 @@ function buildStructureHTML(){
   '</div>'+
   sec('\uD83D\uDCDE Voice Activation \u2014 Paid Weekly','var(--purple)',
     '<p style="font-size:12px;color:var(--gray);margin-bottom:10px">New Voice + MIM lines determine your payout tier. You are paid on new voice activations only \u2014 upgrades and BTS do not count toward tiers.</p>'+tbl(vRows)+
-    '<div style="background:#fff3cd;border:1px solid #ffc107;border-radius:8px;padding:8px 12px;font-size:11px;font-weight:600;color:#856404;margin-top:10px">\u26A0\uFE0F If your personal retention is below '+r.drt+'%, a '+(r.df*100)+'% decelerator may be applied.</div>')+
+    '<div style="background:#fff3cd;border:1px solid #ffc107;border-radius:8px;padding:8px 12px;font-size:11px;font-weight:600;color:#856404;margin-top:10px">\u26A0\uFE0F If your 95-day DCS retention is below '+r.drt+'%, a '+(r.df*100)+'% decelerator is applied to your voice payout.</div>')+
   sec('\uD83D\uDCF2 MIM \u2014 Paid Weekly','var(--magenta)',
     '<p style="font-size:12px;color:var(--gray);margin-bottom:10px">MIM lines count toward your voice tier but are not paid twice.</p>'+
     tbl(tierRow('Every MIM line','$'+r.mpp+' per line')))+
