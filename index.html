@@ -531,7 +531,7 @@ var SP_CONFIG={
   tenantId:'ebc8d7ee-ee3a-4821-b739-b0b060e7357f',
   siteUrl:'https://evolutionwirelessinc.sharepoint.com/sites/Payroll2',
   settingsList:'Rep Bonus Settings',                   // list holding JSON data blobs
-  getFlowUrl:'',                                       // optional: Power Automate GET flow URL (lets reps load data without Microsoft sign-in)
+  getFlowUrl:'https://defaultebc8d7eeee3a4821b739b0b060e735.7f.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/183ba75cb8ed472dbcf9b731e3bbc67b/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=BWGGHwFfKWYTp6M-30YDaj4VIQhqPPehOhKofDLdrc8',  // Power Automate GET flow (reps load data without Microsoft sign-in)
   coachEmails:{
     'rose@edgelinkinc.com':'Rose Perez',
     'ambulai@edgelinkinc.com':'Ambulai Sheku',
@@ -591,7 +591,8 @@ function spPull(done){
   // Path A: anonymous GET flow (works for reps, no sign-in)
   if(SP_CONFIG.getFlowUrl){
     var xhr=new XMLHttpRequest();
-    xhr.open('GET',SP_CONFIG.getFlowUrl,true);
+    xhr.open('POST',SP_CONFIG.getFlowUrl,true);
+    xhr.setRequestHeader('Content-Type','application/json');
     xhr.onreadystatechange=function(){
       if(xhr.readyState!==4)return;
       if(xhr.status>=200&&xhr.status<300){
@@ -602,7 +603,7 @@ function spPull(done){
         }catch(e){console.error('flow parse',e);if(done)done(false);}
       } else if(done)done(false);
     };
-    xhr.send();return;
+    xhr.send('{}');return;
   }
   // Path B: signed-in MSAL user reads directly
   spToken(function(token){
