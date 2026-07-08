@@ -1,0 +1,1991 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EdgeLink Rep Bonus Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--magenta:#E20074;--purple:#4A1B5C;--ml:#ff1a8c;--pl:#6b2d87;--bg:#f5f5f7;--gray:#8e8e93;--gl:#e5e5ea;--text:#1c1c1e;--sw:220px;--green:#34c759;--orange:#ff9500;--red:#ff3b30}
+body{font-family:'Montserrat',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
+#sidebar{position:fixed;top:0;left:0;width:var(--sw);height:100vh;background:var(--purple);display:flex;flex-direction:column;z-index:100;transition:transform .3s}
+#sidebar-logo{padding:20px 16px 16px;border-bottom:1px solid rgba(255,255,255,.12)}
+#sidebar-logo .brand{font-family:'Bebas Neue',sans-serif;font-size:28px;color:#fff;letter-spacing:1px;line-height:1}
+#sidebar-logo .sub{font-size:10px;color:var(--magenta);font-weight:700;letter-spacing:2px;text-transform:uppercase;margin-top:2px}
+#sidebar nav{flex:1;padding:12px 0;overflow-y:auto}
+.nav-item{display:flex;align-items:center;gap:12px;padding:12px 16px;cursor:pointer;color:rgba(255,255,255,.7);font-size:13px;font-weight:600;border-left:3px solid transparent;transition:all .2s}
+.nav-item:hover{color:#fff;background:rgba(255,255,255,.08)}
+.nav-item.active{color:#fff;background:rgba(226,0,116,.15);border-left-color:var(--magenta)}
+.nav-item .ni{font-size:18px;width:22px;text-align:center}
+#sfooter{padding:16px;border-top:1px solid rgba(255,255,255,.12)}
+#sfooter .wl{font-size:11px;color:rgba(255,255,255,.5);font-weight:600;letter-spacing:1px;text-transform:uppercase}
+#sfooter .wv{font-size:12px;color:rgba(255,255,255,.8);margin-top:3px}
+#burger{display:none;position:fixed;top:14px;left:14px;z-index:200;background:var(--purple);border:none;color:#fff;width:40px;height:40px;border-radius:10px;font-size:20px;cursor:pointer;align-items:center;justify-content:center}
+#main{margin-left:var(--sw);min-height:100vh}
+#topbar{background:#fff;padding:16px 24px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--gl);position:sticky;top:0;z-index:50}
+#topbar .pt{font-family:'Bebas Neue',sans-serif;font-size:26px;color:var(--purple)}
+#topbar .tr{display:flex;align-items:center;gap:10px}
+.btn{padding:8px 16px;border-radius:8px;border:none;font-family:'Montserrat',sans-serif;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.5px;text-transform:uppercase;transition:all .2s}
+.btn-p{background:var(--magenta);color:#fff}.btn-p:hover{background:var(--ml)}
+.btn-s{background:var(--gl);color:var(--text)}.btn-s:hover{background:#d1d1d6}
+.btn-pu{background:var(--purple);color:#fff}.btn-pu:hover{background:var(--pl)}
+.btn-sm{padding:6px 12px;font-size:11px}.btn-d{background:var(--red);color:#fff}
+#content{padding:20px 24px}
+.view{display:none}.view.active{display:block}
+.card{background:#fff;border-radius:14px;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,.06);margin-bottom:16px}
+.ct{font-family:'Bebas Neue',sans-serif;font-size:20px;color:var(--purple);margin-bottom:14px}
+.sg{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:16px}
+.sc{border-radius:12px;padding:16px;color:#fff;text-align:center}
+.sc.pu{background:linear-gradient(135deg,var(--purple),var(--pl))}
+.sc.mg{background:linear-gradient(135deg,var(--magenta),var(--ml))}
+.sc.rd{background:linear-gradient(135deg,var(--red),#ff6b60)}
+.sc.gr{background:linear-gradient(135deg,var(--green),#28a745)}
+.sc.or{background:linear-gradient(135deg,var(--orange),#e67e00)}
+.sc .val{font-family:'Bebas Neue',sans-serif;font-size:28px;line-height:1}
+.sc .lbl{font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;opacity:.85;margin-top:4px}
+.tw{overflow-x:auto;-webkit-overflow-scrolling:touch}
+table{width:100%;border-collapse:collapse;font-size:13px}
+thead th{background:var(--purple);color:#fff;padding:10px 12px;text-align:left;font-size:11px;font-weight:700;white-space:nowrap}
+tbody tr{border-bottom:1px solid var(--gl)}
+tbody tr:hover{background:#fafafa}
+tbody td{padding:10px 12px;white-space:nowrap}
+.badge{display:inline-block;padding:3px 8px;border-radius:20px;font-size:10px;font-weight:700}
+.bt1{background:#fff3e0;color:#e65100}.bt2{background:#fce4ec;color:#c62828}
+.bt3{background:#ede7f6;color:#4527a0}.bt4{background:var(--purple);color:#fff}
+.bt5{background:var(--green);color:#fff}.bnt{background:#ffebee;color:#c62828}
+.bop{background:#fff3e0;color:#e65100}.bpa{background:#e3f2fd;color:#1565c0}.bcl{background:#e8f5e9;color:#2e7d32}
+.bmg{background:var(--magenta);color:#fff}
+.b1me{background:#ede7f6;color:#4527a0}.b2me{background:#e3f2fd;color:#1565c0}
+.amt{font-weight:700;color:var(--purple)}.amt.gr{color:var(--green)}.amt.rd{color:var(--red)}
+#login-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,var(--purple) 0%,#2d0f3d 100%)}
+.lb{background:#fff;border-radius:20px;padding:40px 36px;width:100%;max-width:380px;text-align:center}
+.lb .logo{font-family:'Bebas Neue',sans-serif;font-size:42px;color:var(--purple);letter-spacing:2px}
+.lb .sub{font-size:11px;color:var(--magenta);font-weight:700;letter-spacing:2px;text-transform:uppercase;margin-bottom:28px}
+.lb h3{font-size:15px;font-weight:700;margin-bottom:20px}
+.fg{margin-bottom:14px;text-align:left}
+.fg label{font-size:11px;font-weight:700;color:var(--gray);text-transform:uppercase;display:block;margin-bottom:5px}
+.fg input,.fg select{width:100%;padding:12px 14px;border:2px solid var(--gl);border-radius:10px;font-family:'Montserrat',sans-serif;font-size:14px;outline:none}
+.fg input:focus,.fg select:focus{border-color:var(--magenta)}
+.lerr{color:var(--red);font-size:12px;font-weight:600;margin-top:8px;display:none}
+.ldiv{display:flex;align-items:center;gap:10px;margin:16px 0;color:var(--gray);font-size:12px}
+.ldiv::before,.ldiv::after{content:'';flex:1;height:1px;background:var(--gl)}
+.uz{border:2px dashed var(--gl);border-radius:12px;padding:24px;text-align:center;cursor:pointer;background:#fafafa;transition:all .2s}
+.uz:hover,.uz.drag{border-color:var(--magenta);background:#fff0f7}
+.uz .ui{font-size:32px;margin-bottom:8px}
+.uz p{font-size:13px;color:var(--gray)}
+.uz .un{font-size:12px;color:var(--magenta);font-weight:700;margin-top:6px}
+.fs{display:flex;align-items:center;gap:8px;padding:10px 14px;border-radius:10px;margin-top:8px;font-size:12px;font-weight:600}
+.fs.ok{background:#e8f5e9;color:#2e7d32}.fs.err{background:#ffebee;color:#c62828}.fs.pnd{background:#fff8e1;color:#f57f17}
+.rg{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}
+.rb{background:var(--bg);border-radius:12px;padding:16px}
+.rb h4{font-size:12px;font-weight:700;text-transform:uppercase;color:var(--purple);margin-bottom:12px}
+.rr{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.rr label{font-size:12px;color:var(--gray);flex:1}
+.rr input{width:80px;padding:6px 10px;border:1.5px solid var(--gl);border-radius:8px;font-family:'Montserrat',sans-serif;font-size:13px;font-weight:700;text-align:right}
+.rr input:focus{outline:none;border-color:var(--magenta)}
+.fc{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;align-items:center}
+.fc input,.fc select{padding:8px 12px;border:1.5px solid var(--gl);border-radius:8px;font-family:'Montserrat',sans-serif;font-size:13px;outline:none}
+.mo{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:500;display:none;align-items:center;justify-content:center;padding:16px}
+.mo.open{display:flex}
+.md{background:#fff;border-radius:16px;padding:28px;width:100%;max-width:500px;max-height:90vh;overflow-y:auto}
+.md h3{font-family:'Bebas Neue',sans-serif;font-size:22px;color:var(--purple);margin-bottom:18px}
+.mf{display:flex;gap:10px;justify-content:flex-end;margin-top:20px;flex-wrap:wrap}
+.br{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--gl)}
+.br:last-child{border-bottom:none}
+.br .bl{font-size:13px;color:var(--gray)}
+.br .bv{font-size:14px;font-weight:700;color:var(--purple)}
+.br.tot .bl{color:var(--text);font-weight:700}
+.br.tot .bv{color:var(--magenta);font-size:18px}
+.br.cb .bv{color:var(--red)}
+.br.net .bl{color:var(--text);font-size:15px;font-weight:700}
+.br.net .bv{color:var(--green);font-size:20px}
+.br.arc .bl{color:#b45a00;font-weight:600}.br.arc .bv{color:#b45a00}
+.arcs{background:#fff8f0;border:1px solid #ffe0b2;border-radius:10px;padding:14px;margin:10px 0}
+.arcs .at{font-size:11px;font-weight:700;text-transform:uppercase;color:var(--orange);margin-bottom:8px}
+.tbw{background:var(--gl);border-radius:999px;height:8px;overflow:hidden;margin-top:4px}
+.tb{height:100%;border-radius:999px;background:linear-gradient(90deg,var(--magenta),var(--pl));transition:width .6s}
+.db{background:#fff3cd;border:1px solid #ffc107;border-radius:10px;padding:10px 14px;font-size:12px;font-weight:600;color:#856404;margin-bottom:12px;display:none}
+.db.show{display:block}
+.flb{background:#fff3cd;border:1px solid var(--orange);border-radius:8px;padding:8px 12px;font-size:12px;font-weight:700;color:#856404;display:inline-flex;align-items:center;gap:6px}
+#sb{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:99}
+#sb.open{display:block}
+#toast{position:fixed;bottom:24px;right:24px;background:var(--purple);color:#fff;padding:12px 20px;border-radius:12px;font-size:13px;font-weight:600;z-index:999;opacity:0;transform:translateY(10px);transition:all .3s;pointer-events:none}
+#toast.show{opacity:1;transform:translateY(0)}
+.sl{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--gray);margin-bottom:10px}
+.tabs{display:flex;gap:0;border-bottom:2px solid var(--gl);margin-bottom:16px}
+.tab{padding:10px 20px;font-size:13px;font-weight:700;color:var(--gray);cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-2px}
+.tab.active{color:var(--magenta);border-bottom-color:var(--magenta)}
+@media(max-width:768px){
+  #sidebar{transform:translateX(-100%)}#sidebar.open{transform:translateX(0)}
+  #burger{display:flex}#main{margin-left:0}#content{padding:14px}
+  .sg{grid-template-columns:repeat(2,1fr)}.rg{grid-template-columns:1fr}
+  #topbar{padding:12px 16px 12px 60px}
+}
+@media(max-width:420px){.sg{grid-template-columns:1fr 1fr}.lb{padding:28px 20px}}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="login-screen">
+  <div class="lb">
+    <div class="logo">EDGELINK</div>
+    <div class="sub">Rep Bonus Dashboard</div>
+    <div id="rep-lf">
+      <h3>Rep Sign In</h3>
+      <div class="fg"><label>NTID</label><input type="text" id="r-ntid" placeholder="e.g. abc12345" autocomplete="off"></div>
+      <div class="fg"><label>First Name</label><input type="text" id="r-first" placeholder="First name"></div>
+      <div class="fg"><label>Last Name</label><input type="text" id="r-last" placeholder="Last name"></div>
+      <div class="lerr" id="r-err">NTID or name not found.</div>
+      <button class="btn btn-p" style="width:100%;margin-top:6px;padding:14px" onclick="repLogin()">VIEW MY PAY</button>
+      <div class="ldiv">or</div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-pu" style="flex:1;padding:12px" onclick="showCL()">Coach</button>
+        <button class="btn btn-s" style="flex:1;padding:12px" onclick="showAL()">Admin</button>
+      </div>
+      <button class="btn btn-s" style="width:100%;padding:10px;margin-top:8px;background:transparent;color:var(--magenta);border:1.5px solid var(--magenta)" onclick="showStructurePublic()">VIEW BONUS STRUCTURE</button>
+    </div>
+    <div id="admin-lf" style="display:none">
+      <h3>Admin Sign In</h3>
+      <div class="fg"><label>Admin PIN</label><input type="password" id="a-pin" placeholder="&bull;&bull;&bull;&bull;" maxlength="6"></div>
+      <div class="lerr" id="a-err">Incorrect PIN.</div>
+      <button class="btn btn-pu" style="width:100%;margin-top:6px;padding:14px" onclick="adminLogin()">ENTER ADMIN</button>
+      <div class="ldiv">or</div>
+      <button class="btn btn-s" style="width:100%;padding:12px" onclick="showRL()">Rep Sign In</button>
+    </div>
+    <div id="coach-lf" style="display:none">
+      <h3>Coach Sign In</h3>
+      <button class="btn" style="width:100%;padding:14px;background:#2f2f2f;color:#fff;display:flex;align-items:center;justify-content:center;gap:10px" onclick="coachMsLogin()">
+        <span style="display:inline-block;width:16px;height:16px;background:conic-gradient(#f25022 0 25%,#7fba00 0 50%,#ffb900 0 75%,#00a4ef 0);border-radius:2px"></span>
+        SIGN IN WITH MICROSOFT
+      </button>
+      <div class="lerr" id="c-ms-err">Microsoft sign-in failed or email not recognized.</div>
+      <div class="ldiv">or use backup PIN</div>
+      <div class="fg"><label>Coach PIN</label><input type="password" id="c-pin" placeholder="&bull;&bull;&bull;&bull;" maxlength="6"></div>
+      <div class="lerr" id="c-err">Incorrect PIN.</div>
+      <button class="btn btn-pu" style="width:100%;margin-top:6px;padding:12px" onclick="coachLogin()">ENTER WITH PIN</button>
+      <div class="ldiv">or</div>
+      <button class="btn btn-s" style="width:100%;padding:12px" onclick="showRL()">Rep Sign In</button>
+    </div>
+  </div>
+</div>
+
+<!-- PUBLIC STRUCTURE OVERLAY -->
+<div id="pub-structure" style="display:none;position:fixed;inset:0;background:var(--bg);z-index:300;overflow-y:auto">
+  <div style="background:var(--purple);padding:16px 20px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:10">
+    <div>
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:24px;color:#fff;letter-spacing:1px">EDGELINK</div>
+      <div style="font-size:10px;color:var(--magenta);font-weight:700;letter-spacing:2px;text-transform:uppercase">Get Paid</div>
+    </div>
+    <button class="btn btn-p btn-sm" onclick="hideStructurePublic()">SIGN IN</button>
+  </div>
+  <div style="padding:20px;max-width:900px;margin:0 auto" id="pub-structure-content"></div>
+</div>
+
+<button id="burger" onclick="toggleSB()">&#9776;</button>
+<div id="sb" onclick="closeSB()"></div>
+
+<div id="app" style="display:none">
+  <div id="sidebar">
+    <div id="sidebar-logo"><div class="brand">EDGELINK</div><div class="sub">Bonus Dashboard</div></div>
+    <nav id="snav"></nav>
+    <div id="sfooter"><div class="wl">Payout Week</div><div class="wv" id="sw">&mdash;</div>
+      <div id="sync-badge" style="font-size:10px;font-weight:700;margin-top:8px;color:rgba(255,255,255,.4)">SP: not configured</div>
+    </div>
+  </div>
+  <div id="main">
+    <div id="topbar">
+      <div class="pt" id="tbt">Dashboard</div>
+      <div class="tr">
+        <span id="tbu" style="font-size:12px;font-weight:600;color:var(--gray)"></span>
+        <button class="btn btn-pu btn-sm" id="ms-connect-btn" style="display:none" onclick="adminMsConnect()">CONNECT MICROSOFT</button>
+        <button class="btn btn-s btn-sm" onclick="logout()">Sign Out</button>
+      </div>
+    </div>
+    <div id="content">
+
+      <div class="view" id="view-structure">
+        <div id="structure-content" style="max-width:900px"></div>
+      </div>
+
+      <div class="view" id="view-coach-pay">
+        <div class="fc">
+          <select id="co-filter" onchange="renderCoachAll()" style="font-weight:700"></select>
+        </div>
+        <div class="sg" id="cp-stats"></div>
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px">
+            <div class="ct" style="margin:0">Team Payouts</div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+              <select id="co-rep-sel" style="padding:8px 12px;border:1.5px solid var(--gl);border-radius:8px;font-family:'Montserrat',sans-serif;font-size:13px"><option value="all">Whole Team</option></select>
+              <button class="btn btn-p btn-sm" onclick="coachExportPDF()">&#11015; DOWNLOAD PDF</button>
+            </div>
+          </div>
+          <div class="tw"><table><thead><tr>
+            <th>Rep</th><th>NTID</th><th>Store</th><th>V Tier</th><th>Voice $</th><th>MIM $</th><th>Acc $</th><th>Upg $</th>
+            <th>Weekly Bonus</th><th>Arcade</th><th>CB</th><th>Net</th>
+          </tr></thead><tbody id="cp-body"></tbody></table></div>
+          <div id="co-ex-status" style="margin-top:10px;font-size:13px;font-weight:600;color:var(--gray)"></div>
+        </div>
+      </div>
+
+      <div class="view" id="view-coach-tier">
+        <div class="fc"><select id="ct-filter" onchange="renderCoachTier()" style="font-weight:700"></select>
+        <select id="ct-wk" onchange="renderCoachTier()"><option value="all">All Weeks</option></select></div>
+        <div class="card">
+          <div class="ct">Team Tier Achievement</div>
+          <div class="tw"><table><thead><tr><th>Rep</th><th>Store</th><th>Week</th><th>Voice Tier</th><th>Lines</th><th>Acc Tier</th><th>Acc Profit</th><th>Flag</th></tr></thead>
+          <tbody id="ct-body"></tbody></table></div>
+        </div>
+      </div>
+
+      <div class="view" id="view-coach-cb">
+        <div class="fc"><select id="ccb-filter" onchange="renderCoachCB()" style="font-weight:700"></select></div>
+        <div class="card">
+          <div class="ct">Team Chargebacks</div>
+          <div class="tw"><table><thead><tr><th>Rep</th><th>NTID</th><th>Category</th><th>Date</th><th>Owed</th><th>Deducted</th><th>Balance</th><th>Status</th></tr></thead>
+          <tbody id="ccb-body"></tbody></table></div>
+        </div>
+      </div>
+
+      <div class="view" id="view-mypay">
+        <div id="db" class="db">&#9888;&#65039; 50% Decelerator Applied &mdash; Personal retention is below 57%</div>
+        <div class="sg" id="mp-stats"></div>
+        <div class="card"><div class="ct">Weekly Bonus Breakdown</div><div id="mp-break"></div></div>
+        <div class="card"><div class="ct">Monthly Running Total</div><div id="mp-month"></div></div>
+      </div>
+
+      <div class="view" id="view-mytier">
+        <div class="card"><div class="ct">My Tier Achievement</div><div id="mt-content"></div></div>
+      </div>
+
+      <div class="view" id="view-mycb">
+        <div class="card"><div class="ct">My Chargebacks</div><div id="mcb-content"></div></div>
+      </div>
+
+      <div class="view" id="view-admin-home">
+        <div class="sg" id="ah-stats"></div>
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px">
+            <div class="ct" style="margin:0">Company Payout Summary</div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <button class="btn btn-s btn-sm" onclick="exportPayoutCSV()">&#11015; CSV</button>
+              <button class="btn btn-p btn-sm" onclick="exportPayoutPDF()">&#11015; PDF</button>
+            </div>
+          </div>
+          <div class="tw"><table><thead><tr>
+            <th>Rep</th><th>NTID</th><th>Coach</th><th>Store</th>
+            <th>V Tier</th><th>Voice $</th><th>MIM $</th><th>Acc $</th><th>Upg $</th>
+            <th>Weekly Bonus</th><th>Arcade</th><th>CB</th><th>Net</th>
+          </tr></thead><tbody id="ah-body"></tbody></table></div>
+        </div>
+      </div>
+
+      <div class="view" id="view-upload">
+        <div class="card">
+          <div class="ct">Upload Reports</div>
+          <p style="font-size:13px;color:var(--gray);margin-bottom:20px">Upload all three reports to refresh rep bonus data. Matched by NTID.</p>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px">
+            <div>
+              <div class="sl">1 &mdash; Power BI Sales (.xlsx)</div>
+              <div class="uz" id="zone-pbi" onclick="document.getElementById('f-pbi').click()" ondragover="dov(event,'zone-pbi')" ondragleave="dlv('zone-pbi')" ondrop="dop(event,'pbi')">
+                <div class="ui">&#128202;</div><p>Click or drag to upload</p><div class="un" id="pbi-nm">POWER_BI_SALES_*.xlsx</div>
+              </div>
+              <input type="file" id="f-pbi" accept=".xlsx" style="display:none" onchange="hf(this,'pbi')">
+              <div class="fs pnd" id="st-pbi">&#9203; Awaiting upload</div>
+            </div>
+            <div>
+              <div class="sl">2 &mdash; Employee Performance (.xls)</div>
+              <div class="uz" id="zone-emp" onclick="document.getElementById('f-emp').click()" ondragover="dov(event,'zone-emp')" ondragleave="dlv('zone-emp')" ondrop="dop(event,'emp')">
+                <div class="ui">&#128203;</div><p>Click or drag to upload</p><div class="un" id="emp-nm">EmployeePerformance_*.xls</div>
+              </div>
+              <input type="file" id="f-emp" accept=".xls,.xlsx" style="display:none" onchange="hf(this,'emp')">
+              <div class="fs pnd" id="st-emp">&#9203; Awaiting upload</div>
+            </div>
+            <div>
+              <div class="sl">3 &mdash; Activation Detail (.csv)</div>
+              <div class="uz" id="zone-csv" onclick="document.getElementById('f-csv').click()" ondragover="dov(event,'zone-csv')" ondragleave="dlv('zone-csv')" ondrop="dop(event,'csv')">
+                <div class="ui">&#128196;</div><p>Click or drag to upload</p><div class="un" id="csv-nm">ActivationDetailReport_*.csv</div>
+              </div>
+              <input type="file" id="f-csv" accept=".csv" style="display:none" onchange="hf(this,'csv')">
+              <div class="fs pnd" id="st-csv">&#9203; Awaiting upload</div>
+            </div>
+          </div>
+          <div style="margin-top:20px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+            <div style="display:flex;align-items:center;gap:8px">
+              <label style="font-size:12px;font-weight:700;color:var(--gray)">Week Start:</label>
+              <input type="date" id="wk-s" style="padding:8px 10px;border:1.5px solid var(--gl);border-radius:8px;font-family:'Montserrat',sans-serif;font-size:13px">
+            </div>
+            <div style="display:flex;align-items:center;gap:8px">
+              <label style="font-size:12px;font-weight:700;color:var(--gray)">Week End:</label>
+              <input type="date" id="wk-e" style="padding:8px 10px;border:1.5px solid var(--gl);border-radius:8px;font-family:'Montserrat',sans-serif;font-size:13px">
+            </div>
+            <button class="btn btn-p" onclick="processRpts()">PROCESS &amp; SAVE</button>
+          </div>
+          <div id="proc-status" style="margin-top:12px;font-size:13px;font-weight:600;color:var(--gray)"></div>
+        </div>
+        <div class="card">
+          <div class="ct">Loaded Week History</div>
+          <div class="tw"><table><thead><tr><th>Week</th><th>Reps</th><th>Gross Bonus</th><th>Arcade</th><th>CB</th><th>Net</th><th>Loaded</th><th></th></tr></thead><tbody id="wk-body"></tbody></table></div>
+        </div>
+      </div>
+
+      <div class="view" id="view-chargebacks">
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px">
+            <div class="ct" style="margin:0">Chargeback Ledger</div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <button class="btn btn-s btn-sm" onclick="dlCBTemplate('xlsx')">&#11015; XLSX TEMPLATE</button>
+              <button class="btn btn-s btn-sm" onclick="dlCBTemplate('csv')">&#11015; CSV TEMPLATE</button>
+              <button class="btn btn-s btn-sm" onclick="document.getElementById('f-cbi').click()">&#11014; IMPORT</button>
+              <input type="file" id="f-cbi" accept=".xlsx,.csv" style="display:none" onchange="importCBFile(this)">
+              <button class="btn btn-p btn-sm" onclick="openAddCB()">+ ADD</button>
+            </div>
+          </div>
+          <div class="fc">
+            <input type="text" id="cb-srch" placeholder="Search rep or NTID&hellip;" oninput="renderCBT()">
+            <select id="cb-coach" onchange="renderCBT()"><option value="all">All Coaches</option></select>
+            <select id="cb-stat" onchange="renderCBT()">
+              <option value="all">All Statuses</option><option value="open">Open</option>
+              <option value="partial">Partial</option><option value="closed">Closed</option>
+            </select>
+            <select id="cb-cat" onchange="renderCBT()"><option value="all">All Categories</option></select>
+          </div>
+          <div class="sg" id="cb-stats"></div>
+          <div class="tw"><table><thead><tr>
+            <th>Rep</th><th>NTID</th><th>Coach</th><th>Category</th><th>Date</th>
+            <th>Owed</th><th>Type</th><th>Deducted</th><th>Balance</th><th>Status</th><th></th>
+          </tr></thead><tbody id="cb-body"></tbody></table></div>
+        </div>
+        <div class="card">
+          <div class="ct">Chargeback Categories</div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
+            <input type="text" id="newcat" placeholder="New category&hellip;" style="padding:8px 12px;border:1.5px solid var(--gl);border-radius:8px;font-family:'Montserrat',sans-serif;font-size:13px;outline:none;flex:1;min-width:160px">
+            <button class="btn btn-p btn-sm" onclick="addCat()">ADD</button>
+          </div>
+          <div id="cat-list"></div>
+        </div>
+      </div>
+
+      <div class="view" id="view-tier">
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px">
+            <div class="ct" style="margin:0">Tier Achievement</div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <button class="btn btn-s btn-sm" onclick="exportTierCSV()">&#11015; CSV</button>
+              <button class="btn btn-p btn-sm" onclick="exportTierPDF()">&#11015; PDF</button>
+            </div>
+          </div>
+          <div class="fc">
+            <select id="t-wk" onchange="renderTier()"><option value="all">All Weeks</option></select>
+            <select id="t-co" onchange="renderTier()"><option value="all">All Coaches</option></select>
+            <select id="t-cat" onchange="renderTier()">
+              <option value="all">All</option><option value="voice">Voice Only</option><option value="acc">Acc Only</option>
+            </select>
+          </div>
+          <div class="tw"><table><thead><tr><th>Rep</th><th>Coach</th><th>Store</th><th>Week</th><th>Voice Tier</th><th>Lines</th><th>Acc Tier</th><th>Acc Profit</th><th>Flag</th></tr></thead>
+          <tbody id="tier-body"></tbody></table></div>
+        </div>
+      </div>
+
+      <div class="view" id="view-roster">
+        <div class="tabs">
+          <div class="tab active" id="tab-reps" onclick="switchRosterTab('reps')">REP ROSTER</div>
+          <div class="tab" id="tab-stores" onclick="switchRosterTab('stores')">STORE ROSTER</div>
+        </div>
+        <div class="card" id="roster-reps-card">
+          <div id="ro-review-banner" style="display:none;background:#fff3cd;border:1px solid #ffc107;border-radius:10px;padding:10px 14px;font-size:12px;font-weight:600;color:#856404;margin-bottom:14px"></div>
+          <div class="fc">
+            <input type="text" id="ro-srch" placeholder="Search name or NTID&hellip;" oninput="renderRoster()" style="flex:1;min-width:160px">
+            <select id="ro-co" onchange="renderRoster()"><option value="all">All Coaches</option></select>
+            <select id="ro-st" onchange="renderRoster()"><option value="all">All States</option><option>AR</option><option>CT</option><option>MA</option><option>RI</option><option>TN</option></select>
+            <button class="btn btn-p btn-sm" onclick="openAddRep()">+ ADD REP</button>
+            <button class="btn btn-s btn-sm" onclick="exportRosterCSV()">EXPORT CSV</button>
+          </div>
+          <div class="tw"><table><thead><tr><th>Full Name</th><th>NTID</th><th>State</th><th>Home Store</th><th>Coach</th><th></th></tr></thead>
+          <tbody id="ro-body"></tbody></table></div>
+        </div>
+        <div class="card" id="roster-stores-card" style="display:none">
+          <div class="fc">
+            <input type="text" id="so-srch" placeholder="Search store&hellip;" oninput="renderStores()" style="flex:1;min-width:160px">
+            <select id="so-st" onchange="renderStores()"><option value="all">All States</option><option>AR</option><option>CT</option><option>MA</option><option>RI</option><option>TN</option></select>
+            <select id="so-co" onchange="renderStores()"><option value="all">All Coaches</option></select>
+            <button class="btn btn-p btn-sm" onclick="openAddStore()">+ ADD STORE</button>
+            <button class="btn btn-s btn-sm" onclick="exportStoresCSV()">EXPORT CSV</button>
+          </div>
+          <div class="tw"><table><thead><tr><th>Store</th><th>State</th><th>Tier</th><th>Manager</th><th>Coach</th><th></th></tr></thead>
+          <tbody id="so-body"></tbody></table></div>
+        </div>
+      </div>
+
+      <div class="view" id="view-rules">
+        <div class="card">
+          <div class="ct">Bonus Rules Editor</div>
+          <p style="font-size:13px;color:var(--gray);margin-bottom:16px">Changes apply immediately to all calculations.</p>
+          <div class="rg" id="rules-grid"></div>
+          <div style="margin-top:20px;display:flex;gap:10px;flex-wrap:wrap">
+            <button class="btn btn-p" onclick="saveRules()">SAVE RULES</button>
+            <button class="btn btn-s" onclick="resetRules()">RESET DEFAULT</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="view" id="view-export">
+        <div class="card">
+          <div class="ct">Export Bonus Slips (PDF)</div>
+          <p style="font-size:13px;color:var(--gray);margin-bottom:16px">Downloads a true PDF per rep or all reps in a group.</p>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;align-items:center">
+            <select id="ex-wk" style="padding:8px 12px;border:1.5px solid var(--gl);border-radius:8px;font-family:'Montserrat',sans-serif;font-size:13px"><option value="">Select week&hellip;</option></select>
+            <select id="ex-co" style="padding:8px 12px;border:1.5px solid var(--gl);border-radius:8px;font-family:'Montserrat',sans-serif;font-size:13px"><option value="all">All Coaches</option></select>
+            <select id="ex-rep" style="padding:8px 12px;border:1.5px solid var(--gl);border-radius:8px;font-family:'Montserrat',sans-serif;font-size:13px"><option value="all">All Reps</option></select>
+            <button class="btn btn-p" onclick="exportPDFs()">&#11015; ONE PDF</button>
+            <button class="btn btn-pu" onclick="exportPDFsZip()">&#11015; ZIP (INDIVIDUAL PDFS)</button>
+          </div>
+          <div id="ex-status" style="font-size:13px;font-weight:600;color:var(--gray)"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- MODALS -->
+<div class="mo" id="mo-rep">
+  <div class="md">
+    <h3 id="mo-rep-t">Add Rep</h3>
+    <div class="fg"><label>Full Name</label><input type="text" id="re-name" placeholder="First Last"></div>
+    <div class="fg"><label>NTID</label><input type="text" id="re-ntid" placeholder="abc12345"></div>
+    <div class="fg"><label>State</label><select id="re-state"><option>AR</option><option>CT</option><option>MA</option><option>RI</option><option>TN</option></select></div>
+    <div class="fg"><label>Home Store</label><select id="re-store"></select></div>
+    <div class="fg"><label>Coach</label><select id="re-coach"></select></div>
+    <div class="mf"><button class="btn btn-s" onclick="cm('mo-rep')">Cancel</button><button class="btn btn-p" onclick="saveRep()">SAVE</button></div>
+  </div>
+</div>
+
+<div class="mo" id="mo-store">
+  <div class="md">
+    <h3 id="mo-store-t">Add Store</h3>
+    <div class="fg"><label>Store Name</label><input type="text" id="se-name" placeholder="e.g. RI-BROADWAY"></div>
+    <div class="fg"><label>State</label><select id="se-state"><option>AR</option><option>CT</option><option>MA</option><option>RI</option><option>TN</option></select></div>
+    <div class="fg"><label>Tier</label><select id="se-tier"><option>1ME</option><option>2ME</option></select></div>
+    <div class="fg"><label>Manager</label><input type="text" id="se-mgr" placeholder="Manager name"></div>
+    <div class="fg"><label>Coach</label><select id="se-coach"></select></div>
+    <div class="mf"><button class="btn btn-s" onclick="cm('mo-store')">Cancel</button><button class="btn btn-p" onclick="saveStore()">SAVE</button></div>
+  </div>
+</div>
+
+<div class="mo" id="mo-cb">
+  <div class="md">
+    <h3 id="mo-cb-t">Add Chargeback</h3>
+    <div class="fg"><label>Rep NTID</label>
+      <input type="text" id="cb-ntid" placeholder="abc12345" oninput="cbLookup()">
+      <div id="cb-hint" style="font-size:11px;color:var(--magenta);margin-top:4px;font-weight:600"></div>
+    </div>
+    <div class="fg"><label>Category</label><select id="cb-ecat"></select></div>
+    <div class="fg"><label>Date of Incident</label><input type="date" id="cb-date"></div>
+    <div class="fg"><label>Total Amount Owed ($)</label><input type="number" id="cb-total" placeholder="0.00" min="0" step="0.01" oninput="cbAmtCheck()"></div>
+    <div id="cb-flag-row" style="display:none;margin-bottom:14px">
+      <div class="flb">&#9888;&#65039; Over $40 &mdash; set a % deduction</div>
+      <div style="margin-top:10px;display:flex;align-items:center;gap:10px">
+        <label style="font-size:12px;font-weight:700;color:var(--gray)">Deduction %:</label>
+        <input type="number" id="cb-pct" placeholder="e.g. 50" min="1" max="100" step="1" style="width:80px;padding:8px;border:1.5px solid var(--gl);border-radius:8px;font-family:'Montserrat',sans-serif;font-size:13px">
+        <span style="font-size:12px;color:var(--gray)">% of amount owed</span>
+      </div>
+      <div style="margin-top:6px;font-size:11px;color:var(--gray)">Leave blank for flat dollar deduction.</div>
+    </div>
+    <div id="cb-auto-note" style="display:none;margin-bottom:14px;font-size:11px;font-weight:600;color:var(--green)">\u2713 At or under $40 \u2014 will auto-deduct in full from the current payout week.
+    </div>
+    <div class="fg"><label>Notes (optional)</label><input type="text" id="cb-notes" placeholder="Invoice #, details&hellip;"></div>
+    <div class="mf"><button class="btn btn-s" onclick="cm('mo-cb')">Cancel</button><button class="btn btn-p" onclick="saveCB()">SAVE</button></div>
+  </div>
+</div>
+
+<div class="mo" id="mo-pay">
+  <div class="md">
+    <h3>Apply Deduction</h3>
+    <div id="pay-info" style="font-size:13px;color:var(--gray);margin-bottom:16px"></div>
+    <div class="fg"><label>Amount to Deduct ($)</label><input type="number" id="pay-amt" placeholder="0.00" min="0.01" step="0.01"></div>
+    <div class="fg"><label>Apply to Week</label><select id="pay-wk"></select></div>
+    <div class="mf"><button class="btn btn-s" onclick="cm('mo-pay')">Cancel</button><button class="btn btn-p" onclick="applyPay()">APPLY</button></div>
+  </div>
+</div>
+
+<div class="mo" id="mo-confirm">
+  <div class="md">
+    <h3>Confirm</h3>
+    <p style="font-size:13px;color:var(--gray);margin-bottom:16px" id="conf-msg">Are you sure?</p>
+    <div class="mf"><button class="btn btn-s" onclick="cm('mo-confirm')">Cancel</button><button class="btn btn-d" id="conf-ok">CONFIRM</button></div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ---- CONSTANTS ----
+var PIN='3833';var COACH_PIN='2126';
+
+// ═══════════════ SHAREPOINT / MSAL CONFIG — EDIT THESE ═══════════════
+var SP_CONFIG={
+  clientId:'PASTE_NEW_AZURE_APP_CLIENT_ID_HERE',      // from new Azure app registration
+  tenantId:'ebc8d7ee-ee3a-4821-b739-b0b060e7357f',
+  siteUrl:'https://evolutionwirelessinc.sharepoint.com/sites/Payroll2',
+  settingsList:'Rep Bonus Settings',                   // list holding JSON data blobs
+  getFlowUrl:'',                                       // optional: Power Automate GET flow URL (lets reps load data without Microsoft sign-in)
+  coachEmails:{
+    'rose@edgelinkinc.com':'Rose Perez',
+    'ambulai@edgelinkinc.com':'Ambulai Sheku',
+    'joel@edgelinkinc.com':'Joel Montero',
+    'angel.rivera@edgelinkinc.com':'Manny Rivera',
+    'jameswatts@evolutionwireless.net':'Mr. Watts',
+    'cheryl@edgelinkinc.com':'Cheryl'
+  }
+};
+// ══════════════════════════════════════════════════════════════════════
+
+var msalApp=null;var msalAccount=null;var myCoachName=null;var spConnected=false;
+function msalReady(){return typeof msal!=='undefined'&&SP_CONFIG.clientId.indexOf('PASTE')<0;}
+function getMsal(){
+  if(msalApp)return msalApp;
+  msalApp=new msal.PublicClientApplication({
+    auth:{clientId:SP_CONFIG.clientId,authority:'https://login.microsoftonline.com/'+SP_CONFIG.tenantId,redirectUri:window.location.origin+window.location.pathname},
+    cache:{cacheLocation:'localStorage'}
+  });
+  return msalApp;
+}
+
+// ═══ SHAREPOINT SYNC (JSON blobs in Settings list) ═══
+var SYNC_KEYS=null;
+function getSyncKeys(){
+  if(!SYNC_KEYS)SYNC_KEYS=[{sp:'weeks',ls:SK.weeks},{sp:'roster',ls:SK.roster},{sp:'stores',ls:SK.stores},{sp:'chargebacks',ls:SK.cb},{sp:'rules',ls:SK.rules},{sp:'cb_categories',ls:SK.cats}];
+  return SYNC_KEYS;
+}
+var syncDirty={};var syncTimer=null;
+
+function spToken(cb){
+  if(!msalReady()||!msalAccount){cb(null);return;}
+  var req={scopes:['https://evolutionwirelessinc.sharepoint.com/AllSites.Write'],account:msalAccount};
+  getMsal().acquireTokenSilent(req).then(function(r){cb(r.accessToken);}).catch(function(){
+    getMsal().acquireTokenPopup(req).then(function(r){cb(r.accessToken);}).catch(function(e){console.error('token',e);cb(null);});
+  });
+}
+function spApi(method,path,body,token,cb){
+  var xhr=new XMLHttpRequest();
+  var verb=(method==='PATCH'||method==='MERGE')?'POST':method;
+  xhr.open(verb,SP_CONFIG.siteUrl+path,true);
+  xhr.setRequestHeader('Authorization','Bearer '+token);
+  xhr.setRequestHeader('Accept','application/json;odata=nometadata');
+  if(body){xhr.setRequestHeader('Content-Type','application/json;odata=nometadata');}
+  if(method==='PATCH'||method==='MERGE'){xhr.setRequestHeader('IF-MATCH','*');xhr.setRequestHeader('X-HTTP-Method','MERGE');}
+  xhr.onreadystatechange=function(){
+    if(xhr.readyState!==4)return;
+    if(xhr.status>=200&&xhr.status<300){var d=null;try{d=JSON.parse(xhr.responseText);}catch(e){}cb(null,d);}
+    else cb(xhr.status+': '+xhr.responseText,null);
+  };
+  xhr.send(body?JSON.stringify(body):null);
+}
+function spListPath(){return "/_api/web/lists/getbytitle('"+encodeURIComponent(SP_CONFIG.settingsList)+"')";}
+
+// PULL: load all blobs from SharePoint into localStorage
+function spPull(done){
+  // Path A: anonymous GET flow (works for reps, no sign-in)
+  if(SP_CONFIG.getFlowUrl){
+    var xhr=new XMLHttpRequest();
+    xhr.open('GET',SP_CONFIG.getFlowUrl,true);
+    xhr.onreadystatechange=function(){
+      if(xhr.readyState!==4)return;
+      if(xhr.status>=200&&xhr.status<300){
+        try{
+          var items=JSON.parse(xhr.responseText);
+          applyPulled(items);spConnected=true;
+          if(done)done(true);
+        }catch(e){console.error('flow parse',e);if(done)done(false);}
+      } else if(done)done(false);
+    };
+    xhr.send();return;
+  }
+  // Path B: signed-in MSAL user reads directly
+  spToken(function(token){
+    if(!token){if(done)done(false);return;}
+    spApi('GET',spListPath()+'/items?$top=50',null,token,function(err,data){
+      if(err||!data||!data.value){if(done)done(false);return;}
+      applyPulled(data.value);spConnected=true;
+      if(done)done(true);
+    });
+  });
+}
+function applyPulled(items){
+  for(var i=0;i<items.length;i++){
+    var it=items[i];
+    var key=it.SettingKey||it.Title;
+    var val=it.ValueJSON;
+    if(!key||!val)continue;
+    var skeys=getSyncKeys();
+    for(var k=0;k<skeys.length;k++){
+      if(skeys[k].sp===key){
+        try{JSON.parse(val);localStorage.setItem(skeys[k].ls,val);}catch(e){}
+      }
+    }
+  }
+}
+
+// PUSH: write dirty blobs to SharePoint (admin/coach signed in with Microsoft)
+function markDirty(lsKey){
+  var skeys=getSyncKeys();for(var k=0;k<skeys.length;k++){if(skeys[k].ls===lsKey)syncDirty[skeys[k].sp]=true;}
+  if(syncTimer)clearTimeout(syncTimer);
+  syncTimer=setTimeout(spPush,2000);
+  updateSyncBadge();
+}
+function spPush(){
+  if(!msalReady()||!msalAccount)return;
+  var keys=[];for(var k in syncDirty){if(syncDirty[k])keys.push(k);}
+  if(!keys.length)return;
+  spToken(function(token){
+    if(!token)return;
+    // Get existing items once, then create/update each dirty key
+    spApi('GET',spListPath()+'/items?$top=50',null,token,function(err,data){
+      if(err){console.error(err);return;}
+      var existing={};
+      if(data&&data.value){for(var i=0;i<data.value.length;i++){var it=data.value[i];existing[it.SettingKey||it.Title]=it.Id;}}
+      var pending=keys.length;
+      function doneOne(){pending--;if(pending<=0){syncDirty={};updateSyncBadge();showToast('Synced to SharePoint.');}}
+      for(var j=0;j<keys.length;j++){(function(spKey){
+        var lsKey=null;
+        var skeys2=getSyncKeys();for(var m=0;m<skeys2.length;m++){if(skeys2[m].sp===spKey)lsKey=skeys2[m].ls;}
+        var val=localStorage.getItem(lsKey)||'null';
+        var body={Title:spKey,SettingKey:spKey,ValueJSON:val};
+        if(existing[spKey]){
+          spApi('PATCH',spListPath()+'/items('+existing[spKey]+')',body,token,function(e2){if(e2)console.error(e2);doneOne();});
+        } else {
+          spApi('POST',spListPath()+'/items',body,token,function(e2){if(e2)console.error(e2);doneOne();});
+        }
+      })(keys[j]);}
+    });
+  });
+}
+function updateSyncBadge(){
+  var el=document.getElementById('sync-badge');if(!el)return;
+  var dirty=false;for(var k in syncDirty){if(syncDirty[k])dirty=true;}
+  if(!msalReady()){el.textContent='SP: not configured';el.style.color='rgba(255,255,255,.4)';}
+  else if(!msalAccount){el.textContent='SP: sign in to sync';el.style.color='#ffb900';}
+  else if(dirty){el.textContent='SP: syncing\u2026';el.style.color='#ffb900';}
+  else if(spConnected){el.textContent='SP: connected \u2713';el.style.color='#7fba00';}
+  else{el.textContent='SP: ready';el.style.color='rgba(255,255,255,.6)';}
+}
+function adminMsConnect(){
+  if(!msalReady()){showToast('Paste the Azure app client ID into SP_CONFIG first.');return;}
+  getMsal().loginPopup({scopes:['User.Read']}).then(function(res){
+    msalAccount=res.account;
+    showToast('Connected as '+res.account.username);
+    updateSyncBadge();
+    spPull(function(ok){if(ok){showToast('Data loaded from SharePoint.');if(role==='admin')renderAH();}});
+  }).catch(function(e){console.error(e);showToast('Sign-in failed.');});
+}
+var SK={weeks:'elb_wks',roster:'elb_ros',stores:'elb_sto',rules:'elb_rul',cb:'elb_cb',cats:'elb_cats'};
+var DEF_CATS=['XBM','RMA','SIM Card','Cash Shortage'];
+var COACHES=['Rose Perez','Ambulai Sheku','Joel Montero','Manny Rivera','Mr. Watts','Cheryl','TBD'];
+
+var role=null,curRep=null,editRepIdx=-1,editStoreIdx=-1,activeCBIdx=-1,confCBfn=null;
+var rawF={pbi:null,emp:null,csv:null};
+
+// ---- SEED DATA (from WFO rosters) ----
+var SEED_STORES=[{"store": "AR-COLONEL GLENN", "state": "AR", "tier": "1ME", "manager": "Karmina Mendoza", "coach": "TBD"}, {"store": "AR-RADIO GEYER", "state": "AR", "tier": "2ME", "manager": "Karmina Mendoza", "coach": "TBD"}, {"store": "CT-BUCKLAND HILLS MALL", "state": "CT", "tier": "2ME", "manager": "Nereida Rodriquez", "coach": "TBD"}, {"store": "CT-NEW LONDON", "state": "CT", "tier": "2ME", "manager": "Josh Landry", "coach": "TBD"}, {"store": "CT-NORWICH", "state": "CT", "tier": "1ME", "manager": "Josh Landry", "coach": "TBD"}, {"store": "MA-SOUTH SHORE MALL", "state": "MA", "tier": "2ME", "manager": "Amina Fellah", "coach": "Rose Perez"}, {"store": "MA-CAPE COD MALL", "state": "MA", "tier": "2ME", "manager": "TBD", "coach": "Ambulai Sheku"}, {"store": "MA-COGGESHALL", "state": "MA", "tier": "2ME", "manager": "Napoleao Dacruz", "coach": "Manny Rivera"}, {"store": "MA-EXCHANGE ST", "state": "MA", "tier": "1ME", "manager": "Jazmine Heredia", "coach": "Joel Montero"}, {"store": "MA-FALLRIVER", "state": "MA", "tier": "2ME", "manager": "TBD", "coach": "Manny Rivera"}, {"store": "MA-HOLYOKE", "state": "MA", "tier": "2ME", "manager": "Carlos Davila", "coach": "Joel Montero"}, {"store": "MA-KELLEY SQUARE", "state": "MA", "tier": "2ME", "manager": "Alex Correa", "coach": "Rose Perez"}, {"store": "MA-LOCUST STREET", "state": "MA", "tier": "1ME", "manager": "Alicia Montero", "coach": "Joel Montero"}, {"store": "MA-ORANGE STREET", "state": "MA", "tier": "1ME", "manager": "TBD", "coach": "TBD"}, {"store": "MA-ROCKDALE", "state": "MA", "tier": "2ME", "manager": "Lori Ruiz", "coach": "Manny Rivera"}, {"store": "MA-STATE STREET", "state": "MA", "tier": "1ME", "manager": "Jessica Ratamar", "coach": "Joel Montero"}, {"store": "MA-WESTERN AVE", "state": "MA", "tier": "2ME", "manager": "Amina Fellah", "coach": "Rose Perez"}, {"store": "RI-751 BROAD", "state": "RI", "tier": "1ME", "manager": "Keysha Bettencourt", "coach": "Rose Perez"}, {"store": "RI-BALD HILL", "state": "RI", "tier": "2ME", "manager": "Allia Abodaher", "coach": "TBD"}, {"store": "RI-BROAD ST", "state": "RI", "tier": "2ME", "manager": "TBD", "coach": "Rose Perez"}, {"store": "RI-BROADWAY", "state": "RI", "tier": "1ME", "manager": "TBD", "coach": "Ambulai Sheku"}, {"store": "RI-COVENTRY", "state": "RI", "tier": "1ME", "manager": "Chris Paul Pierre", "coach": "Ambulai Sheku"}, {"store": "RI-DOUGLAS", "state": "RI", "tier": "1ME", "manager": "Chris Paul Pierre", "coach": "Ambulai Sheku"}, {"store": "RI-EAST PROVIDENCE", "state": "RI", "tier": "2ME", "manager": "Saimary Hernandez", "coach": "TBD"}, {"store": "RI-HARTFORD AVE", "state": "RI", "tier": "2ME", "manager": "Yanna Sorano", "coach": "Rose Perez"}, {"store": "RI-NEWPORT AVE", "state": "RI", "tier": "1ME", "manager": "Saimary Hernandez", "coach": "Rose Perez"}, {"store": "RI-PROVIDENCE PLACE MALL", "state": "RI", "tier": "2ME", "manager": "TBD", "coach": "Rose Perez"}, {"store": "RI-RESERVOIR AVE", "state": "RI", "tier": "2ME", "manager": "Daniel Rosales", "coach": "Ambulai Sheku"}, {"store": "TN-KEITH ST", "state": "TN", "tier": "1ME", "manager": "Mirtha", "coach": "Mr. Watts"}, {"store": "TN-MAGNOLIA", "state": "TN", "tier": "2ME", "manager": "Mel Mcallister", "coach": "Mr. Watts"}, {"store": "TN-MORRISTOWN", "state": "TN", "tier": "1ME", "manager": "Franchesca Rader", "coach": "Mr. Watts"}, {"store": "TN-NORTH BROADWAY", "state": "TN", "tier": "2ME", "manager": "Franchesca Rader", "coach": "Mr. Watts"}, {"store": "TN-SHALLOWFORD RD", "state": "TN", "tier": "2ME", "manager": "Marquesha Jones", "coach": "Mr. Watts"}, {"store": "TN-WEST MARKET", "state": "TN", "tier": "1ME", "manager": "Charsima Heggie", "coach": "Cheryl"}, {"store": "TN-WESTERN AVE", "state": "TN", "tier": "1ME", "manager": "TBD", "coach": "Mr. Watts"}];
+var SEED_REPS=[{"ntid": "cso68288", "name": "Mariel McAllister", "state": "TN", "coach": "Mr. Watts", "store": "TN-MAGNOLIA"}, {"ntid": "oxy97908", "name": "Richard Foster", "state": "MA", "coach": "Rose Perez", "store": "MA-KELLEY SQUARE"}, {"ntid": "nrg89467", "name": "Yanna Soriano", "state": "RI", "coach": "Rose Perez", "store": "RI-HARTFORD AVE"}, {"ntid": "jhq79532", "name": "Saimary Hernandez", "state": "RI", "coach": "TBD", "store": "RI-EAST PROVIDENCE"}, {"ntid": "uao36325", "name": "Gilberto Alvarez", "state": "CT", "coach": "TBD", "store": "CT-NEW LONDON"}, {"ntid": "olp39593", "name": "Abigail Baez", "state": "RI", "coach": "Rose Perez", "store": "RI-PROVIDENCE PLACE MALL"}, {"ntid": "pnl78523", "name": "Amina Fellah", "state": "MA", "coach": "Rose Perez", "store": "MA-WESTERN AVE"}, {"ntid": "rmn54941", "name": "Alex Correa", "state": "MA", "coach": "Rose Perez", "store": "MA-KELLEY SQUARE"}, {"ntid": "ija97207", "name": "Karmina Mendoza", "state": "AR", "coach": "TBD", "store": "AR-RADIO GEYER"}, {"ntid": "xyl01111", "name": "Milton Vega", "state": "RI", "coach": "Rose Perez", "store": "RI-HARTFORD AVE"}, {"ntid": "ork31397", "name": "Kevin Martinez", "state": "AR", "coach": "TBD", "store": "AR-RADIO GEYER"}, {"ntid": "lzo62919", "name": "Charisma Heggie", "state": "TN", "coach": "Cheryl", "store": "TN-WEST MARKET"}, {"ntid": "ygh62173", "name": "Marquesha Jones", "state": "TN", "coach": "Mr. Watts", "store": "TN-SHALLOWFORD RD"}, {"ntid": "eiy40272", "name": "Hector Marrero", "state": "RI", "coach": "Rose Perez", "store": "RI-751 BROAD"}, {"ntid": "uku47592", "name": "Jaden Thomas", "state": "RI", "coach": "Ambulai Sheku", "store": ""}, {"ntid": "hfo96739", "name": "Stephanie Melo", "state": "MA", "coach": "Rose Perez", "store": "MA-WESTERN AVE"}, {"ntid": "dxp98939", "name": "Allia Abodaher", "state": "RI", "coach": "TBD", "store": "RI-BALD HILL"}, {"ntid": "vqz19656", "name": "Angel Rivera", "state": "MA", "coach": "Manny Rivera", "store": ""}, {"ntid": "usw26794", "name": "Justin Moniz", "state": "MA", "coach": "Manny Rivera", "store": "MA-FALLRIVER"}, {"ntid": "clg74245", "name": "Napoleoa DaCruz", "state": "MA", "coach": "Manny Rivera", "store": "MA-COGGESHALL"}, {"ntid": "ias17194", "name": "Oscar Mendez Muniz", "state": "RI", "coach": "Rose Perez", "store": "RI-HARTFORD AVE"}, {"ntid": "gck12676", "name": "Nicki Johnson", "state": "TN", "coach": "Mr. Watts", "store": ""}, {"ntid": "ysq12440", "name": "Jason Link Jr", "state": "RI", "coach": "Ambulai Sheku", "store": ""}, {"ntid": "khp97059", "name": "Sabrina Morales", "state": "RI", "coach": "Rose Perez", "store": "RI-BROAD ST"}, {"ntid": "lhx36141", "name": "Franchesca Rader", "state": "TN", "coach": "Mr. Watts", "store": "TN-NORTH BROADWAY"}, {"ntid": "klz94722", "name": "Christopher Pierre Paul", "state": "RI", "coach": "Ambulai Sheku", "store": "RI-COVENTRY"}, {"ntid": "jiy63724", "name": "Jensy Rodriguez", "state": "RI", "coach": "Rose Perez", "store": "RI-PROVIDENCE PLACE MALL"}, {"ntid": "kfe95893", "name": "Jermaine Underwood", "state": "TN", "coach": "Mr. Watts", "store": "TN-SHALLOWFORD RD"}, {"ntid": "tzo36978", "name": "Frank Merino Ceballos", "state": "RI", "coach": "Ambulai Sheku", "store": "RI-BROADWAY"}, {"ntid": "xov57998", "name": "Jose Monroy", "state": "RI", "coach": "TBD", "store": ""}, {"ntid": "vpb31735", "name": "Khrystyne Quasney", "state": "MA", "coach": "Manny Rivera", "store": "MA-FALLRIVER"}, {"ntid": "qlo66750", "name": "Mirtha Melendez", "state": "TN", "coach": "Mr. Watts", "store": "TN-KEITH ST"}, {"ntid": "zym14820", "name": "April Mayorga", "state": "TN", "coach": "Mr. Watts", "store": ""}, {"ntid": "yfb29407", "name": "Keysha Betancourt", "state": "RI", "coach": "Rose Perez", "store": "RI-751 BROAD"}, {"ntid": "kwp74551", "name": "Josh Landry", "state": "CT", "coach": "TBD", "store": "CT-NEW LONDON"}, {"ntid": "ihs87312", "name": "Brendaliz Oliver Rodriguez", "state": "CT", "coach": "TBD", "store": "CT-NORWICH"}, {"ntid": "kwv73873", "name": "Hector Torres", "state": "MA", "coach": "Joel Montero", "store": "MA-HOLYOKE"}, {"ntid": "qqo06195", "name": "Brandon Mitchell", "state": "RI", "coach": "Rose Perez", "store": "RI-NEWPORT AVE"}, {"ntid": "ziw70174", "name": "Armando Perez", "state": "MA", "coach": "Joel Montero", "store": "MA-LOCUST STREET"}, {"ntid": "kam65097", "name": "Alicia Montero", "state": "MA", "coach": "Joel Montero", "store": "MA-LOCUST STREET"}, {"ntid": "zfz71226", "name": "Vernard Ashe", "state": "RI", "coach": "Ambulai Sheku", "store": "MA-CAPE COD MALL"}, {"ntid": "vit47142", "name": "Juliana Arruda", "state": "RI", "coach": "Rose Perez", "store": "RI-PROVIDENCE PLACE MALL"}, {"ntid": "aqx90020", "name": "Mariah Gonzalez", "state": "MA", "coach": "Rose Perez", "store": ""}, {"ntid": "qql00950", "name": "Jazmine Heredia", "state": "MA", "coach": "Joel Montero", "store": "MA-EXCHANGE ST"}, {"ntid": "bwp66480", "name": "Shelena Hamilton", "state": "TN", "coach": "Mr. Watts", "store": "TN-NORTH BROADWAY"}, {"ntid": "wqa62252", "name": "Alishabeth Gonzalez", "state": "CT", "coach": "TBD", "store": "CT-BUCKLAND HILLS MALL"}, {"ntid": "niv04273", "name": "Abel Burgos", "state": "MA", "coach": "Rose Perez", "store": "MA-SOUTH SHORE MALL"}, {"ntid": "bey39099", "name": "Nereida Rodriguez", "state": "CT", "coach": "TBD", "store": "CT-BUCKLAND HILLS MALL"}, {"ntid": "nle91260", "name": "Luis Burgos", "state": "CT", "coach": "TBD", "store": ""}, {"ntid": "rlr38159", "name": "Lucmila Lopes", "state": "MA", "coach": "Rose Perez", "store": "MA-SOUTH SHORE MALL"}, {"ntid": "maf14353", "name": "Izabella Regino", "state": "RI", "coach": "TBD", "store": "RI-BALD HILL"}, {"ntid": "cyw45301", "name": "Brenda Serna", "state": "AR", "coach": "TBD", "store": "AR-COLONEL GLENN"}, {"ntid": "ygr92575", "name": "Cleoty Morales", "state": "RI", "coach": "Rose Perez", "store": "RI-HARTFORD AVE"}, {"ntid": "dcz70200", "name": "Alma Cedeno", "state": "MA", "coach": "Joel Montero", "store": "MA-EXCHANGE ST"}, {"ntid": "pej56713", "name": "Kadisha Rivera", "state": "RI", "coach": "Ambulai Sheku", "store": ""}, {"ntid": "czu10265", "name": "Isaiah Caliz", "state": "MA", "coach": "Joel Montero", "store": "MA-LOCUST STREET"}, {"ntid": "oly61789", "name": "Oswaldo Aranda", "state": "RI", "coach": "Ambulai Sheku", "store": ""}, {"ntid": "mtx98142", "name": "Daniel Rosales", "state": "RI", "coach": "Ambulai Sheku", "store": "RI-RESERVOIR AVE"}, {"ntid": "idf00979", "name": "Jessica Retamar", "state": "MA", "coach": "Joel Montero", "store": "MA-STATE STREET"}, {"ntid": "ozy90583", "name": "Ana Marrero", "state": "RI", "coach": "Rose Perez", "store": "RI-751 BROAD"}, {"ntid": "ivs71108", "name": "Melissa Sloane", "state": "TN", "coach": "Mr. Watts", "store": ""}, {"ntid": "clb37831", "name": "Derek Tejeda", "state": "MA", "coach": "Manny Rivera", "store": "MA-ROCKDALE"}, {"ntid": "kow08275", "name": "Carlos Davila", "state": "MA", "coach": "Joel Montero", "store": "MA-HOLYOKE"}, {"ntid": "bcn44692", "name": "Austin Campbell", "state": "TN", "coach": "Mr. Watts", "store": ""}, {"ntid": "hhi23969", "name": "Lori Ruiz", "state": "MA", "coach": "Manny Rivera", "store": "MA-ROCKDALE"}, {"ntid": "ddx68207", "name": "Maliek Feare", "state": "MA", "coach": "Ambulai Sheku", "store": "MA-CAPE COD MALL"}, {"ntid": "pno47488", "name": "Divante Lacy", "state": "MA", "coach": "Joel Montero", "store": "MA-STATE STREET"}, {"ntid": "qxm09669", "name": "Shanelle Sanchez", "state": "CT", "coach": "TBD", "store": ""}, {"ntid": "phm41466", "name": "Handriel Marmol", "state": "RI", "coach": "TBD", "store": "RI-BALD HILL"}, {"ntid": "ybt81977", "name": "Isiaish Valenzuela", "state": "RI", "coach": "TBD", "store": "RI-EAST PROVIDENCE"}, {"ntid": "rhf94107", "name": "Nathan Millsaps", "state": "TN", "coach": "Mr. Watts", "store": "TN-KEITH ST"}, {"ntid": "lpi48610", "name": "CeCe Williamson", "state": "TN", "coach": "Mr. Watts", "store": ""}, {"ntid": "nfo89908", "name": "Melicia Angel", "state": "TN", "coach": "Cheryl", "store": "TN-WEST MARKET"}, {"ntid": "ryl10527", "name": "Gamaly Gonzalez", "state": "CT", "coach": "TBD", "store": "CT-BUCKLAND HILLS MALL"}, {"ntid": "mmm94297", "name": "Angela Westfield", "state": "TN", "coach": "Mr. Watts", "store": "TN-KEITH ST"}, {"ntid": "nik70124", "name": "Djeison Barbosa", "state": "MA", "coach": "Manny Rivera", "store": "MA-ROCKDALE"}, {"ntid": "zhw99574", "name": "Jasmine Griffin", "state": "AR", "coach": "TBD", "store": ""}, {"ntid": "zpn24125", "name": "Shanna Speed", "state": "TN", "coach": "Cheryl", "store": ""}, {"ntid": "naw86731", "name": "Rashia Oates", "state": "CT", "coach": "TBD", "store": ""}, {"ntid": "bpw93549", "name": "James Garcia", "state": "CT", "coach": "TBD", "store": "CT-NORWICH"}, {"ntid": "ifz56368", "name": "Yarele Soler", "state": "MA", "coach": "Rose Perez", "store": "MA-SOUTH SHORE MALL"}, {"ntid": "wxj72901", "name": "Samantha Cuevas", "state": "TN", "coach": "Cheryl", "store": "TN-WEST MARKET"}, {"ntid": "trr15148", "name": "Hasba Hakim", "state": "RI", "coach": "Ambulai Sheku", "store": "RI-DOUGLAS"}, {"ntid": "vfe66579", "name": "Christopher", "state": "", "coach": "Mr. Watts", "store": "TN-MORRISTOWN"}, {"ntid": "laz96098", "name": "Ashton Diamond", "state": "", "coach": "Mr. Watts", "store": "TN-MORRISTOWN"}, {"ntid": "dwe43847", "name": "Delbert Phillips", "state": "", "coach": "Mr. Watts", "store": "TN-MAGNOLIA"}, {"ntid": "nzu83170", "name": "Ambulai Sheku", "state": "", "coach": "Ambulai Sheku", "store": "MA-CAPE COD MALL"}, {"ntid": "ysk35283", "name": "James Watts", "state": "", "coach": "TBD", "store": ""}, {"ntid": "rte65976", "name": "Ana Silva", "state": "", "coach": "Rose Perez", "store": "MA-KELLEY SQUARE"}, {"ntid": "zjv84218", "name": "Andrew Serpa", "state": "", "coach": "TBD", "store": ""}, {"ntid": "dpr83914", "name": "Ceidy Desormeau", "state": "", "coach": "TBD", "store": "CT-NEW LONDON"}, {"ntid": "hbs75820", "name": "Jonah Vallejo", "state": "", "coach": "Mr. Watts", "store": "TN-MAGNOLIA"}, {"ntid": "gcp92528", "name": "Tayla Wilcox", "state": "", "coach": "Ambulai Sheku", "store": "RI-COVENTRY"}, {"ntid": "cmp10750", "name": "Joseph Robleto", "state": "", "coach": "Rose Perez", "store": "RI-HARTFORD AVE"}, {"ntid": "yxt90782", "name": "Rosemary Perez", "state": "", "coach": "TBD", "store": ""}, {"ntid": "ddx65206", "name": "Amauri Razon", "state": "", "coach": "Ambulai Sheku", "store": "RI-RESERVOIR AVE"}, {"ntid": "ywz19652", "name": "Sergio Gomez", "state": "", "coach": "Mr. Watts", "store": "TN-WESTERN AVE"}, {"ntid": "ciz66134", "name": "Angelous Thomas", "state": "", "coach": "TBD", "store": "AR-RADIO GEYER"}, {"ntid": "cai39911", "name": "Jalah Keith", "state": "", "coach": "TBD", "store": "CT-NEW LONDON"}, {"ntid": "rzd14638", "name": "Immanuel Hilerio", "state": "", "coach": "Manny Rivera", "store": "MA-COGGESHALL"}, {"ntid": "hkt84764", "name": "Jose Monroy", "state": "", "coach": "TBD", "store": "RI-EAST PROVIDENCE"}, {"ntid": "qsn23852", "name": "Brianna Swaggerty", "state": "", "coach": "Mr. Watts", "store": "TN-MORRISTOWN"}, {"ntid": "yla61766", "name": "Jayna Estrada", "state": "", "coach": "TBD", "store": "CT-NEW LONDON"}, {"ntid": "rip15404", "name": "Eliezer Linares Perez", "state": "", "coach": "Ambulai Sheku", "store": "RI-COVENTRY"}, {"ntid": "ado76752", "name": "Gina Vieira", "state": "", "coach": "Rose Perez", "store": "RI-PROVIDENCE PLACE MALL"}, {"ntid": "jmx05174", "name": "Zulmarie Malave", "state": "", "coach": "Rose Perez", "store": "RI-BROAD ST"}, {"ntid": "xcq64111", "name": "Nicole Lavoie", "state": "", "coach": "Ambulai Sheku", "store": "RI-COVENTRY"}, {"ntid": "cjt13324", "name": "Tyrone Walker", "state": "", "coach": "Rose Perez", "store": "RI-HARTFORD AVE"}, {"ntid": "dff95007", "name": "Corey Watts", "state": "", "coach": "Mr. Watts", "store": "TN-NORTH BROADWAY"}, {"ntid": "nqa33289", "name": "Harry Carter", "state": "", "coach": "TBD", "store": "AR-RADIO GEYER"}, {"ntid": "ihw13990", "name": "Rhayniel Molina", "state": "", "coach": "TBD", "store": "RI-EAST PROVIDENCE"}, {"ntid": "ryf61216", "name": "Liliana Bruno", "state": "", "coach": "Manny Rivera", "store": "MA-ROCKDALE"}, {"ntid": "moj77057", "name": "Thais Barbosa", "state": "", "coach": "Rose Perez", "store": "MA-WESTERN AVE"}, {"ntid": "wgs23921", "name": "Tyrone Cobb", "state": "", "coach": "Mr. Watts", "store": "TN-MAGNOLIA"}, {"ntid": "wyn66263", "name": "Jalissa Winston", "state": "", "coach": "TBD", "store": "CT-NEW LONDON"}, {"ntid": "ldc14150", "name": "Esther Burgos", "state": "", "coach": "Rose Perez", "store": "MA-SOUTH SHORE MALL"}, {"ntid": "kzd75132", "name": "Kiesha Watkins", "state": "", "coach": "Mr. Watts", "store": "TN-SHALLOWFORD RD"}, {"ntid": "ozf78077", "name": "Kristina Vierra", "state": "", "coach": "Ambulai Sheku", "store": "RI-BROADWAY"}, {"ntid": "kif99917", "name": "Regan Torres", "state": "", "coach": "TBD", "store": "CT-NEW LONDON"}, {"ntid": "dyh14225", "name": "Omar Gaytan", "state": "", "coach": "Mr. Watts", "store": "TN-MORRISTOWN"}, {"ntid": "pjf86816", "name": "Yasharelis", "state": "", "coach": "TBD", "store": ""}, {"ntid": "fao30282", "name": "Todsha", "state": "", "coach": "TBD", "store": ""}];
+
+// ---- DEFAULT RULES ----
+var DRULES={
+  vt:[{min:8,max:11,pay:2},{min:12,max:17,pay:4},{min:18,max:24,pay:5},{min:25,max:9999,pay:7}],
+  drt:57,df:0.5,mpp:10,
+  at:[{min:299,max:499,pct:5},{min:500,max:749,pct:7},{min:750,max:999,pct:10},{min:1000,max:1499,pct:15},{min:1500,max:999999,pct:20}],
+  arc:{hsi:10,bts:2},
+  upg:2,
+  cbFlag:40
+};
+
+// ---- STORAGE ----
+function ld(k,d){try{var v=localStorage.getItem(k);return v?JSON.parse(v):d;}catch(e){return d;}}
+function sv(k,v){localStorage.setItem(k,JSON.stringify(v));if(typeof markDirty==='function')markDirty(k);}
+function getRules(){var r=ld(SK.rules,null);if(!r)return JSON.parse(JSON.stringify(DRULES));if(r.cbFlag===undefined)r.cbFlag=40;return r;}
+function getRoster(){
+  var r=ld(SK.roster,null);
+  if(r===null){r=SEED_REPS.slice();sv(SK.roster,r);}
+  return r;
+}
+function getStores(){
+  var s=ld(SK.stores,null);
+  if(s===null){s=SEED_STORES.slice();sv(SK.stores,s);}
+  return s;
+}
+function getWeeks(){return ld(SK.weeks,[]);}
+function getCBs(){return ld(SK.cb,[]);}
+function getCats(){return ld(SK.cats,DEF_CATS.slice());}
+function getLatestWeek(){var w=getWeeks();if(!w.length)return null;w.sort(function(a,b){return new Date(b.weekStart)-new Date(a.weekStart);});return w[0];}
+function getRosterRep(ntid){var r=getRoster();for(var i=0;i<r.length;i++){if(r[i].ntid.toLowerCase()===ntid.toLowerCase())return r[i];}return null;}
+// Live coach/store resolution: roster is source of truth, week snapshot is fallback
+function liveCoach(rep){var rr=getRosterRep(rep.ntid);return(rr&&rr.coach)?rr.coach:(rep.coach||'TBD');}
+function liveStore(rep){var rr=getRosterRep(rep.ntid);return(rr&&rr.store)?rr.store:(rep.home_store||'');}
+
+// ---- CALCULATIONS ----
+function voiceTier(va,mim){
+  var tot=(va||0)+(mim||0);var r=getRules();
+  for(var i=r.vt.length-1;i>=0;i--){if(tot>=r.vt[i].min)return{tier:'T'+(i+1),pay:r.vt[i].pay,lines:tot,idx:i};}
+  return{tier:'No Tier',pay:0,lines:tot,idx:-1};
+}
+function calcVoice(va,mim,ret){
+  var tv=voiceTier(va,mim);var p=Math.max(0,va||0)*tv.pay;var decel=false;
+  var r=getRules();if(ret!==null&&ret!==undefined&&ret<r.drt){p*=r.df;decel=true;}
+  return{payout:p,tier:tv.tier,lines:tv.lines,decel:decel,idx:tv.idx};
+}
+function calcMIM(mim){return Math.max(0,mim||0)*getRules().mpp;}
+function calcAcc(profit){
+  if(!profit||profit<=0)return{tier:'No Tier',pct:0,payout:0};
+  var r=getRules();
+  for(var i=r.at.length-1;i>=0;i--){if(profit>=r.at[i].min)return{tier:'T'+(i+1),pct:r.at[i].pct,payout:profit*r.at[i].pct/100};}
+  return{tier:'No Tier',pct:0,payout:0};
+}
+function calcArcade(hsi,bts){
+  var r=getRules();
+  var h=Math.max(0,hsi||0)*r.arc.hsi,b=Math.max(0,bts||0)*r.arc.bts;
+  return{hsi:h,bts:b,total:h+b};
+}
+function calcUpg(u){return Math.max(0,u||0)*getRules().upg;}
+function calcRep(rep){
+  var v=calcVoice(rep.voice_acts,rep.mim_acts,rep.retention);
+  var m=calcMIM(rep.mim_acts);var ac=calcAcc(rep.totaccessoryprofit);
+  var ar=calcArcade(rep.hsi_acts,rep.bts_acts);var ug=calcUpg(rep.upgrade_count);
+  return{voice:v,mim:m,acc:ac,arc:ar,upg:ug,weeklyBonus:v.payout+m+ac.payout+ug,arcade:ar.total};
+}
+function cbForWeek(ntid,weekStart){
+  var cbs=getCBs();var total=0;var items=[];
+  for(var i=0;i<cbs.length;i++){
+    var cb=cbs[i];if(cb.ntid.toLowerCase()!==ntid.toLowerCase())continue;
+    for(var j=0;j<cb.payments.length;j++){
+      if(cb.payments[j].weekStart===weekStart){total+=cb.payments[j].amount;items.push({category:cb.category,date:cb.date,amount:cb.payments[j].amount,notes:cb.notes});}
+    }
+  }
+  return{total:total,items:items};
+}
+function cbBal(cb){var p=0;for(var i=0;i<cb.payments.length;i++)p+=cb.payments[i].amount;return{paid:p,balance:cb.totalOwed-p,status:p<=0?'open':(p>=cb.totalOwed-0.001?'closed':'partial')};}
+// Auto-deduct: if amount is at or under the flag threshold, apply the full deduction
+// to the latest loaded week immediately. Returns true if auto-deducted.
+function autoDeductCB(cb){
+  var r=getRules();
+  if(cb.totalOwed>r.cbFlag)return false;
+  var wk=getLatestWeek();
+  if(!wk)return false;
+  cb.payments.push({amount:cb.totalOwed,weekStart:wk.weekStart,appliedAt:new Date().toISOString(),auto:true});
+  return true;
+}
+
+// ---- LOGIN ----
+function showAL(){document.getElementById('rep-lf').style.display='none';document.getElementById('admin-lf').style.display='block';document.getElementById('coach-lf').style.display='none';}
+function showCL(){document.getElementById('rep-lf').style.display='none';document.getElementById('admin-lf').style.display='none';document.getElementById('coach-lf').style.display='block';}
+function coachLogin(){
+  if(document.getElementById('c-pin').value===COACH_PIN){role='coach';myCoachName=null;launchApp();}
+  else{document.getElementById('c-err').style.display='block';}
+}
+function coachMsLogin(){
+  var errEl=document.getElementById('c-ms-err');
+  errEl.style.display='none';
+  if(!msalReady()){
+    errEl.textContent='Microsoft sign-in not configured yet. Use the backup PIN.';
+    errEl.style.display='block';return;
+  }
+  getMsal().loginPopup({scopes:['User.Read']}).then(function(res){
+    msalAccount=res.account;
+    var email=(res.account.username||'').toLowerCase();
+    var coach=SP_CONFIG.coachEmails[email]||null;
+    if(!coach){
+      errEl.textContent='Signed in as '+email+' but that email is not mapped to a coach. Contact HR.';
+      errEl.style.display='block';return;
+    }
+    myCoachName=coach;role='coach';launchApp();
+  }).catch(function(e){
+    console.error(e);
+    errEl.textContent='Microsoft sign-in failed: '+(e.errorCode||e.message||'unknown');
+    errEl.style.display='block';
+  });
+}
+function showStructurePublic(){document.getElementById('pub-structure').style.display='block';document.getElementById('pub-structure-content').innerHTML=buildStructureHTML();}
+function hideStructurePublic(){document.getElementById('pub-structure').style.display='none';}
+function showRL(){document.getElementById('admin-lf').style.display='none';document.getElementById('coach-lf').style.display='none';document.getElementById('rep-lf').style.display='block';}
+function repLogin(){
+  var ntid=document.getElementById('r-ntid').value.trim().toLowerCase();
+  var first=document.getElementById('r-first').value.trim().toLowerCase();
+  var last=document.getElementById('r-last').value.trim().toLowerCase();
+  var rr=getRosterRep(ntid);
+  if(rr){var nm=(rr.name||'').toLowerCase().split(' ');if(nm[0]===first&&nm[nm.length-1]===last){role='rep';curRep={ntid:rr.ntid,full_name:rr.name};launchApp();return;}}
+  var wk=getLatestWeek();
+  if(wk){for(var i=0;i<wk.reps.length;i++){var r=wk.reps[i];if(r.ntid.toLowerCase()===ntid){var np=r.full_name.toLowerCase().split(' ');if(np[0]===first&&np[np.length-1]===last){role='rep';curRep=r;launchApp();return;}}}}
+  document.getElementById('r-err').style.display='block';
+}
+function adminLogin(){
+  if(document.getElementById('a-pin').value===PIN){role='admin';launchApp();}
+  else{document.getElementById('a-err').style.display='block';}
+}
+function logout(){
+  role=null;curRep=null;myCoachName=null;
+  document.getElementById('app').style.display='none';document.getElementById('login-screen').style.display='flex';
+  document.getElementById('a-pin').value='';document.getElementById('c-pin').value='';document.getElementById('r-ntid').value='';
+  document.getElementById('r-first').value='';document.getElementById('r-last').value='';
+  document.getElementById('r-err').style.display='none';document.getElementById('a-err').style.display='none';document.getElementById('c-err').style.display='none';showRL();
+}
+
+// ---- LAUNCH ----
+function launchApp(){
+  document.getElementById('login-screen').style.display='none';document.getElementById('app').style.display='block';
+  var msBtn=document.getElementById('ms-connect-btn');
+  if(msBtn)msBtn.style.display=(role==='admin'&&!msalAccount)?'inline-block':'none';
+  updateSyncBadge();
+  var wk=getLatestWeek();document.getElementById('sw').textContent=wk?fmtR(wk.weekStart,wk.weekEnd):'No data';
+  fillCoachSelects();
+  if(role==='admin'){buildNav(ANAV);document.getElementById('tbu').textContent='Admin';navTo('admin-home');}
+  else if(role==='coach'){buildNav(CNAV);
+    document.getElementById('tbu').textContent=myCoachName?('Coach: '+myCoachName):'Coach';
+    fillCoachFilters();
+    if(myCoachName){
+      var f1=document.getElementById('co-filter');if(f1)f1.value=myCoachName;
+      var f2=document.getElementById('ct-filter');if(f2)f2.value=myCoachName;
+      var f3=document.getElementById('ccb-filter');if(f3)f3.value=myCoachName;
+    }
+    navTo('coach-pay');}
+  else{buildNav(RNAV);document.getElementById('tbu').textContent=curRep?curRep.full_name||'':'';navTo('mypay');}
+}
+function fillCoachSelects(){
+  ['cb-coach','t-co','ro-co','so-co','ex-co','re-coach','se-coach'].forEach(function(id){
+    var sel=document.getElementById(id);if(!sel)return;
+    var keepAll=sel.querySelector('option[value="all"]');
+    sel.innerHTML='';
+    if(keepAll||id==='cb-coach'||id==='t-co'||id==='ro-co'||id==='so-co'||id==='ex-co'){var o=document.createElement('option');o.value='all';o.textContent='All Coaches';sel.appendChild(o);}
+    COACHES.forEach(function(c){var o=document.createElement('option');o.value=c;o.textContent=c;sel.appendChild(o);});
+  });
+}
+
+// ---- NAV ----
+var ANAV=[{id:'admin-home',i:'\uD83C\uDFE0',l:'Dashboard'},{id:'upload',i:'\uD83D\uDCE4',l:'Upload Reports'},
+  {id:'chargebacks',i:'\u26A0\uFE0F',l:'Chargebacks'},{id:'tier',i:'\uD83C\uDFC6',l:'Tier Achievement'},
+  {id:'roster',i:'\uD83D\uDC65',l:'Rosters'},{id:'rules',i:'\u2699\uFE0F',l:'Bonus Rules'},{id:'export',i:'\uD83D\uDCC4',l:'Export Slips'},
+  {id:'structure',i:'\uD83D\uDCB0',l:'Pay Structure'}];
+var RNAV=[{id:'mypay',i:'\uD83D\uDCB5',l:'My Pay'},{id:'mytier',i:'\uD83C\uDFC6',l:'My Tier'},{id:'mycb',i:'\u26A0\uFE0F',l:'Chargebacks'},
+  {id:'structure',i:'\uD83D\uDCB0',l:'Pay Structure'}];
+var CNAV=[{id:'coach-pay',i:'\uD83D\uDCB5',l:'Team Payouts'},{id:'coach-tier',i:'\uD83C\uDFC6',l:'Team Tiers'},
+  {id:'coach-cb',i:'\u26A0\uFE0F',l:'Team Chargebacks'},{id:'structure',i:'\uD83D\uDCB0',l:'Pay Structure'}];
+var TITLES={'admin-home':'Dashboard','upload':'Upload Reports','chargebacks':'Chargebacks','tier':'Tier Achievement','roster':'Rosters','rules':'Bonus Rules','export':'Export Slips','mypay':'My Pay','mytier':'My Tier','mycb':'My Chargebacks','structure':'Pay Structure','coach-pay':'Team Payouts','coach-tier':'Team Tiers','coach-cb':'Team Chargebacks'};
+
+function buildNav(items){
+  var nav=document.getElementById('snav');nav.innerHTML='';
+  for(var i=0;i<items.length;i++){(function(it){
+    var d=document.createElement('div');d.className='nav-item';d.id='nav-'+it.id;
+    d.innerHTML='<span class="ni">'+it.i+'</span><span>'+it.l+'</span>';
+    d.onclick=function(){navTo(it.id);};nav.appendChild(d);
+  })(items[i]);}
+}
+function navTo(id){
+  var vs=document.querySelectorAll('.view');for(var i=0;i<vs.length;i++)vs[i].classList.remove('active');
+  var el=document.getElementById('view-'+id);if(el)el.classList.add('active');
+  var ns=document.querySelectorAll('.nav-item');for(var j=0;j<ns.length;j++)ns[j].classList.remove('active');
+  var ni=document.getElementById('nav-'+id);if(ni)ni.classList.add('active');
+  document.getElementById('tbt').textContent=TITLES[id]||id;closeSB();
+  if(id==='admin-home')renderAH();
+  if(id==='upload')renderWkTable();
+  if(id==='chargebacks'){renderCBT();renderCatList();}
+  if(id==='tier'){fillTierWkSel();renderTier();}
+  if(id==='roster'){renderRoster();renderStores();}
+  if(id==='rules')renderRules();
+  if(id==='export')renderExport();
+  if(id==='mypay')renderMyPay();
+  if(id==='mytier')renderMyTier();
+  if(id==='mycb')renderMyCB();
+  if(id==='structure')document.getElementById('structure-content').innerHTML=buildStructureHTML();
+  if(id==='coach-pay')renderCoachAll();
+  if(id==='coach-tier'){fillCoachTierWk();renderCoachTier();}
+  if(id==='coach-cb')renderCoachCB();
+}
+function toggleSB(){document.getElementById('sidebar').classList.toggle('open');document.getElementById('sb').classList.toggle('open');}
+function closeSB(){document.getElementById('sidebar').classList.remove('open');document.getElementById('sb').classList.remove('open');}
+function switchRosterTab(t){
+  document.getElementById('tab-reps').className='tab'+(t==='reps'?' active':'');
+  document.getElementById('tab-stores').className='tab'+(t==='stores'?' active':'');
+  document.getElementById('roster-reps-card').style.display=t==='reps'?'block':'none';
+  document.getElementById('roster-stores-card').style.display=t==='stores'?'block':'none';
+}
+</script>
+
+<script>
+// ---- FILE UPLOAD ----
+function dov(e,z){e.preventDefault();document.getElementById(z).classList.add('drag');}
+function dlv(z){document.getElementById(z).classList.remove('drag');}
+function dop(e,t){e.preventDefault();document.getElementById('zone-'+t).classList.remove('drag');var f=e.dataTransfer.files[0];if(f)pfl(f,t);}
+function hf(inp,t){if(inp.files[0])pfl(inp.files[0],t);}
+function pfl(file,t){rawF[t]=file;document.getElementById(t+'-nm').textContent=file.name;setSt(t,'pnd','\u23F3 Loaded \u2014 click PROCESS');}
+function setSt(t,c,m){var el=document.getElementById('st-'+t);el.className='fs '+c;el.textContent=m;}
+
+function processRpts(){
+  var ws=document.getElementById('wk-s').value,we=document.getElementById('wk-e').value;
+  var st=document.getElementById('proc-status');
+  if(!ws||!we){st.textContent='\u26A0\uFE0F Set week dates.';return;}
+  if(!rawF.pbi||!rawF.emp||!rawF.csv){st.textContent='\u26A0\uFE0F All 3 reports required.';return;}
+  st.textContent='\u23F3 Processing\u2026';
+  rdXLSX(rawF.pbi,function(pbi){
+    if(!pbi){st.textContent='\u274C Failed to read Power BI file.';return;}
+    setSt('pbi','ok','\u2713 '+pbi.length+' rows');
+    rdXLSX(rawF.emp,function(emp){
+      if(!emp){st.textContent='\u274C Failed to read Emp Perf file.';return;}
+      setSt('emp','ok','\u2713 '+emp.length+' rows');
+      rdCSV(rawF.csv,function(csv){
+        if(!csv){st.textContent='\u274C Failed to read CSV.';return;}
+        setSt('csv','ok','\u2713 '+csv.length+' rows');
+        mergeAndSave(pbi,emp,csv,ws,we,st);
+      });
+    });
+  });
+}
+function rdXLSX(file,cb){
+  var r=new FileReader();
+  r.onload=function(e){try{var wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});cb(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:0}));}catch(er){console.error(er);cb(null);}};
+  r.readAsArrayBuffer(file);
+}
+function rdCSV(file,cb){var r=new FileReader();r.onload=function(e){try{cb(pCSV(e.target.result));}catch(er){cb(null);}};r.readAsText(file,'latin1');}
+function pCSV(text){
+  var lines=text.split('\n');if(!lines.length)return[];
+  var hdrs=splCSV(lines[0]).map(function(h){return h.trim().replace(/^"|"$/g,'');});
+  var rows=[];
+  for(var i=1;i<lines.length;i++){var ln=lines[i].trim();if(!ln)continue;var cols=splCSV(ln);var o={};for(var j=0;j<hdrs.length;j++)o[hdrs[j]]=(cols[j]||'').trim().replace(/^"|"$/g,'');rows.push(o);}
+  return rows;
+}
+function splCSV(ln){var r=[],c='',q=false;for(var i=0;i<ln.length;i++){var ch=ln[i];if(ch==='"'){q=!q;}else if(ch===','&&!q){r.push(c);c='';}else{c+=ch;}}r.push(c);return r;}
+
+function mergeAndSave(pbi,emp,csv,ws,we,stEl){
+  var pm={};
+  for(var i=0;i<pbi.length;i++){
+    var row=pbi[i];var nr=String(row['Employee Name']||'');if(!nr)continue;
+    var m=nr.match(/\(([^)]+)\)/);if(!m)continue;
+    var ntid=m[1].toLowerCase();if(!ntid||ntid==='~'||ntid==='elb')continue;
+    pm[ntid]={ntid:ntid,full_name:nr.replace(/\s*\([^)]*\)/,'').trim(),
+      voice_acts:parseFloat(row['Voice Acts ']||row['Voice Acts']||0)||0,
+      mim_acts:parseFloat(row['MiM Acts']||0)||0,
+      hsi_acts:parseFloat(row['HSI Acts ']||row['HSI Acts']||0)||0,
+      bts_acts:parseFloat(row['BTS Acts ']||row['BTS Acts']||0)||0};
+  }
+  var em={};
+  for(var j=0;j<emp.length;j++){var er=emp[j];var un=(er.username||er.Username||'').toString().toLowerCase();if(un)em[un]=parseFloat(er.totaccessoryprofit||0)||0;}
+  var um={};
+  for(var k=0;k<csv.length;k++){var cr=csv[k];if(cr.acttype!=='Upgrade'||cr.plantype1!=='Voice'||cr.source!=='Inventory')continue;var u2=(cr.username||'').trim().toLowerCase();if(u2)um[u2]=(um[u2]||0)+1;}
+  var reps=[];
+  var keys=Object.keys(pm);
+  var roster=getRoster();var newReps=0;
+  for(var n=0;n<keys.length;n++){
+    var ntid2=keys[n];var b=pm[ntid2];var ri=getRosterRep(ntid2);
+    b.totaccessoryprofit=em[ntid2]||0;b.upgrade_count=um[ntid2]||0;
+    b.coach=ri?ri.coach:'TBD';b.home_store=ri?ri.store:'';b.retention=null;
+    if(!ri){
+      roster.push({ntid:ntid2,name:b.full_name,state:'',store:'',coach:'TBD',needsReview:true});
+      newReps++;
+    }
+    reps.push(b);
+  }
+  if(newReps>0)sv(SK.roster,roster);
+  reps.sort(function(a,b){var al=(a.full_name.split(' ').pop()||'').toLowerCase();var bl=(b.full_name.split(' ').pop()||'').toLowerCase();return al<bl?-1:al>bl?1:0;});
+  var gross=0,arc=0;
+  for(var g=0;g<reps.length;g++){var c=calcRep(reps[g]);gross+=c.weeklyBonus;arc+=c.arcade;}
+  var weeks=getWeeks().filter(function(w){return w.weekStart!==ws;});
+  weeks.push({weekStart:ws,weekEnd:we,reps:reps,loadedAt:new Date().toISOString(),grossBonus:gross,arcadeTotal:arc});
+  sv(SK.weeks,weeks);
+  document.getElementById('sw').textContent=fmtR(ws,we);
+  stEl.textContent='\u2705 Processed '+reps.length+' reps for '+fmtR(ws,we)+(newReps>0?' \u2014 \u26A0\uFE0F '+newReps+' NEW rep(s) auto-added to roster. Assign coach/store in Rosters.':'');
+  renderWkTable();showToast(newReps>0?'Week loaded! \u26A0\uFE0F '+newReps+' new rep(s) need coach/store assignment.':'Week loaded!');fillExportWk();fillExportRep();
+}
+
+// ---- ADMIN HOME ----
+function renderAH(){
+  var wk=getLatestWeek();var se=document.getElementById('ah-stats');var be=document.getElementById('ah-body');
+  if(!wk){se.innerHTML='<div class="card" style="grid-column:1/-1;text-align:center;color:var(--gray);padding:40px">No data loaded. Go to <strong>Upload Reports</strong>.</div>';be.innerHTML='';return;}
+  var reps=wk.reps;var tB=0,tA=0,tC=0;var rows='';
+  for(var i=0;i<reps.length;i++){
+    var rep=reps[i];var c=calcRep(rep);var cbd=cbForWeek(rep.ntid,wk.weekStart);
+    var net=Math.max(0,c.weeklyBonus-cbd.total);
+    tB+=c.weeklyBonus;tA+=c.arcade;tC+=cbd.total;
+    rows+='<tr><td><strong>'+esc(rep.full_name)+'</strong></td>'+
+      '<td style="font-size:11px;color:var(--gray)">'+esc(rep.ntid)+'</td>'+
+      '<td>'+esc(liveCoach(rep))+'</td><td>'+esc(liveStore(rep)||'\u2014')+'</td>'+
+      '<td>'+tb(c.voice.tier)+'</td>'+
+      '<td class="amt">'+fmt(c.voice.payout)+'</td><td class="amt">'+fmt(c.mim)+'</td>'+
+      '<td class="amt">'+fmt(c.acc.payout)+'</td><td class="amt">'+fmt(c.upg)+'</td>'+
+      '<td class="amt">'+fmt(c.weeklyBonus)+'</td>'+
+      '<td class="amt" style="color:var(--orange)">'+fmt(c.arcade)+'</td>'+
+      '<td class="amt rd">'+fmt(cbd.total)+'</td>'+
+      '<td class="amt gr">'+fmt(net)+'</td></tr>';
+  }
+  se.innerHTML=
+    '<div class="sc pu"><div class="val">'+reps.length+'</div><div class="lbl">Reps</div></div>'+
+    '<div class="sc mg"><div class="val">'+fmt(tB)+'</div><div class="lbl">Weekly Bonus</div></div>'+
+    '<div class="sc or"><div class="val">'+fmt(tA)+'</div><div class="lbl">Arcade (Info)</div></div>'+
+    '<div class="sc rd"><div class="val">'+fmt(tC)+'</div><div class="lbl">CB Deductions</div></div>';
+  var roster2=getRoster();var rvw=0;
+  for(var rv=0;rv<roster2.length;rv++){if(roster2[rv].needsReview)rvw++;}
+  if(rvw>0){
+    se.innerHTML+='<div style="grid-column:1/-1;background:#fff3cd;border:1px solid #ffc107;border-radius:10px;padding:12px 16px;font-size:13px;font-weight:600;color:#856404;cursor:pointer" onclick="navTo(\'roster\')">\u26A0\uFE0F <strong>'+rvw+' new rep(s)</strong> were auto-added from reports and need a coach/store. Tap here to assign them.</div>';
+  }
+  be.innerHTML=rows;
+}
+
+// ---- MY PAY ----
+function renderMyPay(){
+  var wk=getLatestWeek();var se=document.getElementById('mp-stats');var be=document.getElementById('mp-break');var me=document.getElementById('mp-month');
+  if(!wk){se.innerHTML='<p style="color:var(--gray);padding:20px">No data available.</p>';be.innerHTML='';me.innerHTML='';return;}
+  var rd=null;
+  for(var i=0;i<wk.reps.length;i++){if(wk.reps[i].ntid.toLowerCase()===(curRep.ntid||'').toLowerCase()){rd=wk.reps[i];break;}}
+  if(!rd){se.innerHTML='<p style="color:var(--gray);padding:20px">No data found for your NTID.</p>';be.innerHTML='';me.innerHTML='';return;}
+  var c=calcRep(rd);var cbd=cbForWeek(rd.ntid,wk.weekStart);var net=Math.max(0,c.weeklyBonus-cbd.total);
+  document.getElementById('db').className='db'+(c.voice.decel?' show':'');
+  var r=getRules();var tmax=r.vt[r.vt.length-1].min+10;var pct=Math.min(100,(c.voice.lines/tmax)*100);
+  var pvp=c.voice.idx>=0?r.vt[c.voice.idx].pay:0;
+  se.innerHTML=
+    '<div class="sc mg"><div class="val">'+fmt(c.weeklyBonus)+'</div><div class="lbl">Weekly Bonus</div></div>'+
+    '<div class="sc rd"><div class="val">'+fmt(cbd.total)+'</div><div class="lbl">Chargebacks</div></div>'+
+    '<div class="sc gr"><div class="val">'+fmt(net)+'</div><div class="lbl">Net Payout</div></div>'+
+    '<div class="sc or"><div class="val">'+fmt(c.arcade)+'</div><div class="lbl">Arcade Daily</div></div>';
+  var cbL='';
+  for(var ci=0;ci<cbd.items.length;ci++){var it=cbd.items[ci];cbL+='<div class="br cb"><span class="bl">\u26A0\uFE0F '+esc(it.category)+' ('+fmtD(it.date)+')'+(it.notes?' \u2014 '+esc(it.notes):'')+'</span><span class="bv">-'+fmt(it.amount)+'</span></div>';}
+  be.innerHTML=
+    '<div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">'+
+    '<span style="font-size:13px;font-weight:600">Voice Tier: '+c.voice.tier+' ('+c.voice.lines+' lines)</span>'+tb(c.voice.tier)+
+    '</div><div class="tbw"><div class="tb" style="width:'+pct+'%"></div></div></div>'+
+    '<div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--purple);margin:8px 0 6px">Weekly Bonus</div>'+
+    '<div class="br"><span class="bl">New Voice Acts ('+Math.max(0,rd.voice_acts||0)+' \u00D7 $'+pvp+')</span><span class="bv">'+fmt(c.voice.payout)+'</span></div>'+
+    '<div class="br"><span class="bl">MIM Lines ('+(rd.mim_acts||0)+' \u00D7 $'+r.mpp+')</span><span class="bv">'+fmt(c.mim)+'</span></div>'+
+    '<div class="br"><span class="bl">Accessories ('+c.acc.tier+' \u2014 '+c.acc.pct+'%)</span><span class="bv">'+fmt(c.acc.payout)+'</span></div>'+
+    '<div class="br"><span class="bl">Upgrades ('+(rd.upgrade_count||0)+' \u00D7 $'+r.upg+')</span><span class="bv">'+fmt(c.upg)+'</span></div>'+
+    '<div class="br tot"><span class="bl">WEEKLY BONUS TOTAL</span><span class="bv">'+fmt(c.weeklyBonus)+'</span></div>'+
+    '<div class="arcs"><div class="at">\uD83D\uDD79 Arcade Daily (Paid Separately \u2014 Not in Weekly Bonus)</div>'+
+    '<div class="br arc" style="border-color:#ffe0b2"><span class="bl">HSI ('+(rd.hsi_acts||0)+' \u00D7 $'+r.arc.hsi+')</span><span class="bv">'+fmt(c.arc.hsi)+'</span></div>'+
+    '<div class="br arc" style="border-color:#ffe0b2"><span class="bl">Tablets / BTS ('+(rd.bts_acts||0)+' \u00D7 $'+r.arc.bts+')</span><span class="bv">'+fmt(c.arc.bts)+'</span></div>'+
+    '<div class="br arc" style="border-bottom:none"><span class="bl" style="font-weight:700">ARCADE DAILY TOTAL</span><span class="bv" style="font-weight:700">'+fmt(c.arcade)+'</span></div></div>'+
+    (cbL?'<div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--red);margin:8px 0 6px">Chargeback Deductions</div>'+cbL:'')+
+    (cbd.total>0?'<div class="br cb"><span class="bl" style="font-weight:700">Total Chargebacks</span><span class="bv">-'+fmt(cbd.total)+'</span></div>':'')+
+    '<div class="br net"><span class="bl">NET WEEKLY PAYOUT</span><span class="bv">'+fmt(net)+'</span></div>';
+  var weeks=getWeeks();weeks.sort(function(a,b){return new Date(a.weekStart)-new Date(b.weekStart);});
+  var mB=0,mC=0,wR='';
+  for(var w=0;w<weeks.length;w++){var wk2=weeks[w];for(var rr=0;rr<wk2.reps.length;rr++){
+    if(wk2.reps[rr].ntid.toLowerCase()!==(curRep.ntid||'').toLowerCase())continue;
+    var wc=calcRep(wk2.reps[rr]);var wCB=cbForWeek(wk2.reps[rr].ntid,wk2.weekStart);
+    mB+=wc.weeklyBonus;mC+=wCB.total;
+    wR+='<div class="br"><span class="bl">Week of '+fmtD(wk2.weekStart)+'</span><span class="bv">'+fmt(Math.max(0,wc.weeklyBonus-wCB.total))+'</span></div>';
+  }}
+  me.innerHTML=wR+'<div class="br tot"><span class="bl">MONTHLY BONUS GROSS</span><span class="bv">'+fmt(mB)+'</span></div>'+
+    (mC>0?'<div class="br cb"><span class="bl">Total CB Deductions</span><span class="bv">-'+fmt(mC)+'</span></div>':'')+
+    '<div class="br net"><span class="bl">MONTHLY NET</span><span class="bv">'+fmt(Math.max(0,mB-mC))+'</span></div>';
+}
+
+// ---- MY TIER / MY CB ----
+function renderMyTier(){
+  var el=document.getElementById('mt-content');var weeks=getWeeks();
+  if(!weeks.length){el.innerHTML='<p style="color:var(--gray);padding:20px">No data.</p>';return;}
+  weeks.sort(function(a,b){return new Date(a.weekStart)-new Date(b.weekStart);});var rows='';
+  for(var w=0;w<weeks.length;w++){var wk=weeks[w];for(var r=0;r<wk.reps.length;r++){
+    if(wk.reps[r].ntid.toLowerCase()!==(curRep.ntid||'').toLowerCase())continue;
+    var c=calcRep(wk.reps[r]);
+    rows+='<tr><td>'+fmtR(wk.weekStart,wk.weekEnd)+'</td><td>'+tb(c.voice.tier)+'</td><td>'+c.voice.lines+'</td><td>'+tb(c.acc.tier)+'</td><td>'+fmt(wk.reps[r].totaccessoryprofit)+'</td></tr>';
+  }}
+  el.innerHTML='<div class="tw"><table><thead><tr><th>Week</th><th>Voice Tier</th><th>Lines</th><th>Acc Tier</th><th>Acc Profit</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
+}
+function renderMyCB(){
+  var el=document.getElementById('mcb-content');var cbs=getCBs();var ntid=(curRep.ntid||'').toLowerCase();
+  var mine=cbs.filter(function(c){return c.ntid.toLowerCase()===ntid;});
+  if(!mine.length){el.innerHTML='<p style="color:var(--gray);padding:20px">No chargebacks on file.</p>';return;}
+  var rows='';
+  for(var i=0;i<mine.length;i++){var cb=mine[i];var b=cbBal(cb);
+    rows+='<tr><td>'+esc(cb.category)+'</td><td>'+fmtD(cb.date)+'</td><td>'+fmt(cb.totalOwed)+'</td><td>'+fmt(b.paid)+'</td><td class="amt rd">'+fmt(b.balance)+'</td><td><span class="badge b'+b.status.substring(0,2)+'">'+b.status.toUpperCase()+'</span></td></tr>';
+  }
+  el.innerHTML='<div class="tw"><table><thead><tr><th>Category</th><th>Date</th><th>Owed</th><th>Paid</th><th>Balance</th><th>Status</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
+}
+</script>
+
+<script>
+// ---- CB ADMIN ----
+function renderCBStats(){
+  var cbs=getCBs();var owed=0,paid=0,open=0;
+  for(var i=0;i<cbs.length;i++){var b=cbBal(cbs[i]);owed+=cbs[i].totalOwed;paid+=b.paid;if(b.status!=='closed')open++;}
+  document.getElementById('cb-stats').innerHTML=
+    '<div class="sc rd"><div class="val">'+open+'</div><div class="lbl">Open / Partial</div></div>'+
+    '<div class="sc pu"><div class="val">'+fmt(owed)+'</div><div class="lbl">Total Owed</div></div>'+
+    '<div class="sc gr"><div class="val">'+fmt(paid)+'</div><div class="lbl">Collected</div></div>'+
+    '<div class="sc rd"><div class="val">'+fmt(owed-paid)+'</div><div class="lbl">Outstanding</div></div>';
+}
+function renderCBT(){
+  renderCBStats();
+  var srch=(document.getElementById('cb-srch').value||'').toLowerCase();
+  var cf=document.getElementById('cb-coach').value,sf=document.getElementById('cb-stat').value,catf=document.getElementById('cb-cat').value;
+  var cbs=getCBs();var rows='';var flagT=getRules().cbFlag;
+  for(var i=0;i<cbs.length;i++){
+    var cb=cbs[i];var b=cbBal(cb);
+    if(sf!=='all'&&b.status!==sf)continue;
+    if(catf!=='all'&&cb.category!==catf)continue;
+    var rr=getRosterRep(cb.ntid);var coach=cb.coach||(rr?rr.coach:'TBD');
+    if(cf!=='all'&&coach!==cf)continue;
+    if(srch&&cb.ntid.indexOf(srch)<0&&(cb.repName||'').toLowerCase().indexOf(srch)<0)continue;
+    var dtype=cb.pct?'% ('+cb.pct+'%)':'Flat $';
+    var flg=cb.totalOwed>flagT&&!cb.pct?' <span class="flb" style="font-size:10px;padding:2px 6px">\u26A0\uFE0F SET %</span>':'';
+    rows+='<tr><td><strong>'+esc(cb.repName||cb.ntid)+'</strong></td>'+
+      '<td style="font-size:11px;color:var(--gray)">'+esc(cb.ntid)+'</td><td>'+esc(coach)+'</td>'+
+      '<td><span class="badge bmg">'+esc(cb.category)+'</span></td><td>'+fmtD(cb.date)+'</td>'+
+      '<td class="amt">'+fmt(cb.totalOwed)+'</td><td>'+dtype+flg+'</td>'+
+      '<td class="amt gr">'+fmt(b.paid)+'</td><td class="amt rd">'+fmt(b.balance)+'</td>'+
+      '<td><span class="badge b'+b.status.substring(0,2)+'">'+b.status.toUpperCase()+'</span></td>'+
+      '<td style="display:flex;gap:4px">'+
+        (b.status!=='closed'?'<button class="btn btn-p btn-sm" onclick="openPay('+i+')">Deduct</button>':'<span style="color:var(--green);font-size:11px;font-weight:700">\u2713 Paid</span>')+
+        '<button class="btn btn-d btn-sm" onclick="delCB('+i+')">Del</button></td></tr>';
+  }
+  document.getElementById('cb-body').innerHTML=rows||'<tr><td colspan="11" style="text-align:center;color:var(--gray);padding:20px">No chargebacks found.</td></tr>';
+}
+function cbAmtCheck(){
+  var amt=parseFloat(document.getElementById('cb-total').value)||0;
+  var over=amt>getRules().cbFlag;
+  document.getElementById('cb-flag-row').style.display=over?'block':'none';
+  var note=document.getElementById('cb-auto-note');
+  if(note)note.style.display=(amt>0&&!over)?'block':'none';
+}
+function openAddCB(){
+  document.getElementById('mo-cb-t').textContent='Add Chargeback';
+  document.getElementById('cb-ntid').value='';document.getElementById('cb-hint').textContent='';
+  document.getElementById('cb-date').value=new Date().toISOString().split('T')[0];
+  document.getElementById('cb-total').value='';document.getElementById('cb-pct').value='';
+  document.getElementById('cb-notes').value='';document.getElementById('cb-flag-row').style.display='none';
+  popCBCats();om('mo-cb');
+}
+function cbLookup(){
+  var ntid=document.getElementById('cb-ntid').value.trim().toLowerCase();
+  var hint=document.getElementById('cb-hint');var rr=getRosterRep(ntid);
+  if(rr){hint.textContent='\u2713 '+rr.name+' \u2014 '+rr.coach;return;}
+  var wk=getLatestWeek();
+  if(wk){for(var i=0;i<wk.reps.length;i++){if(wk.reps[i].ntid.toLowerCase()===ntid){hint.textContent='\u2713 '+wk.reps[i].full_name;return;}}}
+  hint.textContent='';
+}
+function popCBCats(){
+  var cats=getCats();var sel=document.getElementById('cb-ecat');sel.innerHTML='';
+  for(var i=0;i<cats.length;i++){var o=document.createElement('option');o.value=cats[i];o.textContent=cats[i];sel.appendChild(o);}
+}
+function saveCB(){
+  var ntid=document.getElementById('cb-ntid').value.trim().toLowerCase();
+  var cat=document.getElementById('cb-ecat').value,date=document.getElementById('cb-date').value;
+  var total=parseFloat(document.getElementById('cb-total').value)||0;
+  var pct=parseFloat(document.getElementById('cb-pct').value)||null;
+  var notes=document.getElementById('cb-notes').value.trim();
+  if(!ntid||!cat||!date||!total){showToast('Fill all required fields.');return;}
+  var rr=getRosterRep(ntid);var repName=rr?rr.name:'';
+  if(!repName){var wk=getLatestWeek();if(wk){for(var i=0;i<wk.reps.length;i++){if(wk.reps[i].ntid.toLowerCase()===ntid){repName=wk.reps[i].full_name;break;}}}}
+  if(!repName)repName=ntid.toUpperCase();
+  var cbs=getCBs();
+  var newCB={ntid:ntid,repName:repName,category:cat,date:date,totalOwed:total,pct:pct,notes:notes,payments:[],createdAt:new Date().toISOString()};
+  var autoApplied=autoDeductCB(newCB);
+  cbs.push(newCB);
+  sv(SK.cb,cbs);cm('mo-cb');renderCBT();
+  showToast(autoApplied?'Chargeback added \u2014 '+fmt(total)+' auto-deducted from current week.':'Chargeback added.');
+}
+function openPay(idx){
+  activeCBIdx=idx;var cb=getCBs()[idx];var b=cbBal(cb);
+  var sug=cb.pct?cb.totalOwed*cb.pct/100:null;
+  document.getElementById('pay-info').innerHTML='<strong>'+esc(cb.repName)+'</strong> \u2014 '+esc(cb.category)+'<br>Total Owed: '+fmt(cb.totalOwed)+(cb.pct?' ('+cb.pct+'% type)':'')+' | Collected: '+fmt(b.paid)+' | <strong>Balance: '+fmt(b.balance)+'</strong>'+(sug?'<br><em style="color:var(--orange)">Suggested deduction: '+fmt(Math.min(sug,b.balance))+'</em>':'');
+  document.getElementById('pay-amt').value=sug?Math.min(sug,b.balance).toFixed(2):'';
+  var weeks=getWeeks();weeks.sort(function(a,b2){return new Date(b2.weekStart)-new Date(a.weekStart);});
+  var sel=document.getElementById('pay-wk');sel.innerHTML='';
+  for(var i=0;i<weeks.length;i++){var o=document.createElement('option');o.value=weeks[i].weekStart;o.textContent=fmtR(weeks[i].weekStart,weeks[i].weekEnd);sel.appendChild(o);}
+  om('mo-pay');
+}
+function applyPay(){
+  var amt=parseFloat(document.getElementById('pay-amt').value)||0;
+  var ws=document.getElementById('pay-wk').value;
+  if(amt<=0){showToast('Enter a valid amount.');return;}
+  if(!ws){showToast('No week loaded to apply against.');return;}
+  var cbs=getCBs();var cb=cbs[activeCBIdx];var b=cbBal(cb);
+  if(amt>b.balance+0.01){showToast('Exceeds balance of '+fmt(b.balance));return;}
+  cb.payments.push({amount:amt,weekStart:ws,appliedAt:new Date().toISOString()});
+  sv(SK.cb,cbs);cm('mo-pay');renderCBT();showToast('Deduction applied.');
+}
+function delCB(idx){openConf('Delete this chargeback?',function(){var cbs=getCBs();cbs.splice(idx,1);sv(SK.cb,cbs);renderCBT();showToast('Deleted.');});}
+
+// ---- CB TEMPLATE / IMPORT ----
+function dlCBTemplate(type){
+  var cols=['RepNTID','RepName','Category','DateOfIncident','TotalOwed','DeductionPct','Notes'];
+  if(type==='csv'){
+    var csv=cols.join(',')+'\nabc12345,John Smith,XBM,2026-06-29,25.00,,Invoice #1234\ndef67890,Jane Doe,RMA,2026-06-29,150.00,50,Damaged device\n';
+    dlFile('CB_Import_Template.csv',csv,'text/csv');
+  }else{
+    if(typeof XLSX==='undefined'){showToast('Library loading, try again.');return;}
+    var wb=XLSX.utils.book_new();
+    var ws2=XLSX.utils.aoa_to_sheet([cols,['abc12345','John Smith','XBM','2026-06-29',25,'','Invoice #1234'],['def67890','Jane Doe','RMA','2026-06-29',150,50,'Damaged device']]);
+    ws2['!cols']=[{wch:12},{wch:20},{wch:14},{wch:14},{wch:10},{wch:12},{wch:30}];
+    XLSX.utils.book_append_sheet(wb,ws2,'Chargebacks');
+    XLSX.writeFile(wb,'CB_Import_Template.xlsx');
+  }
+}
+function importCBFile(inp){
+  var file=inp.files[0];if(!file)return;
+  var ext=file.name.split('.').pop().toLowerCase();
+  if(ext==='csv'){var r=new FileReader();r.onload=function(e){procCBImport(pCSV(e.target.result));};r.readAsText(file,'latin1');}
+  else{rdXLSX(file,function(rows){if(rows)procCBImport(rows);else showToast('Failed to read file.');});}
+  inp.value='';
+}
+function procCBImport(rows){
+  if(!rows||!rows.length){showToast('No data found.');return;}
+  var cbs=getCBs();var added=0,flagged=0,autoCount=0;var flagT=getRules().cbFlag;
+  for(var i=0;i<rows.length;i++){
+    var row=rows[i];
+    var ntid=String(row['RepNTID']||row['repntid']||'').trim().toLowerCase();
+    var total=parseFloat(row['TotalOwed']||row['totalowed']||0)||0;
+    var pct=parseFloat(row['DeductionPct']||row['deductionpct']||'')||null;
+    if(!ntid||!total)continue;
+    var rr=getRosterRep(ntid);
+    var repName=rr?rr.name:String(row['RepName']||row['repname']||ntid.toUpperCase());
+    var cat=String(row['Category']||row['category']||'Other').trim()||'Other';
+    var dRaw=row['DateOfIncident']||row['dateofincident']||'';
+    var date=normDate(dRaw)||new Date().toISOString().split('T')[0];
+    var notes=String(row['Notes']||row['notes']||'').trim();
+    if(total>flagT&&!pct)flagged++;
+    var impCB={ntid:ntid,repName:repName,category:cat,date:date,totalOwed:total,pct:pct,notes:notes,payments:[],createdAt:new Date().toISOString()};
+    if(autoDeductCB(impCB))autoCount++;
+    cbs.push(impCB);
+    added++;
+  }
+  sv(SK.cb,cbs);renderCBT();
+  var msg='Imported '+added+' chargeback(s).';
+  if(autoCount>0)msg+=' '+autoCount+' auto-deducted (\u2264$'+flagT+').';
+  if(flagged>0)msg+=' \u26A0\uFE0F '+flagged+' over $'+flagT+' \u2014 set % deductions.';
+  showToast(msg);
+}
+function normDate(v){
+  if(!v)return null;
+  if(typeof v==='number'){var d=new Date(Math.round((v-25569)*86400*1000));return d.toISOString().split('T')[0];}
+  var s=String(v).trim();
+  if(/^\d{4}-\d{2}-\d{2}/.test(s))return s.split('T')[0].substring(0,10);
+  var m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
+  if(m){var yr=m[3].length===2?'20'+m[3]:m[3];return yr+'-'+('0'+m[1]).slice(-2)+'-'+('0'+m[2]).slice(-2);}
+  return null;
+}
+
+// ---- CATEGORIES ----
+function renderCatList(){
+  var cats=getCats();var sel=document.getElementById('cb-cat');
+  var cur=sel.value;sel.innerHTML='<option value="all">All Categories</option>';
+  var html='<div style="display:flex;flex-wrap:wrap;gap:8px">';
+  for(var i=0;i<cats.length;i++){(function(cat,idx){
+    var o=document.createElement('option');o.value=cat;o.textContent=cat;sel.appendChild(o);
+    html+='<div style="display:flex;align-items:center;gap:6px;background:var(--bg);border-radius:8px;padding:6px 10px">'+
+      '<span style="font-size:13px;font-weight:600">'+esc(cat)+'</span>'+
+      (DEF_CATS.indexOf(cat)<0?'<button class="btn btn-d btn-sm" onclick="delCat('+idx+')">\u00D7</button>':'<span style="font-size:10px;color:var(--gray)">default</span>')+'</div>';
+  })(cats[i],i);}
+  html+='</div>';document.getElementById('cat-list').innerHTML=html;if(cur)sel.value=cur;
+}
+function addCat(){var v=document.getElementById('newcat').value.trim();if(!v){showToast('Enter a name.');return;}var c=getCats();if(c.indexOf(v)>=0){showToast('Already exists.');return;}c.push(v);sv(SK.cats,c);document.getElementById('newcat').value='';renderCatList();showToast('Added.');}
+function delCat(idx){openConf('Delete category?',function(){var c=getCats();c.splice(idx,1);sv(SK.cats,c);renderCatList();showToast('Deleted.');});}
+
+// ---- WEEKS TABLE ----
+function renderWkTable(){
+  var weeks=getWeeks();var body=document.getElementById('wk-body');
+  if(!weeks.length){body.innerHTML='<tr><td colspan="8" style="text-align:center;color:var(--gray);padding:20px">No weeks loaded.</td></tr>';return;}
+  weeks.sort(function(a,b){return new Date(b.weekStart)-new Date(a.weekStart);});var rows='';
+  for(var i=0;i<weeks.length;i++){
+    var wk=weeks[i];var cbTot=0;
+    for(var r=0;r<wk.reps.length;r++){cbTot+=cbForWeek(wk.reps[r].ntid,wk.weekStart).total;}
+    var net=Math.max(0,(wk.grossBonus||0)-cbTot);
+    rows+='<tr><td>'+fmtR(wk.weekStart,wk.weekEnd)+'</td><td>'+wk.reps.length+'</td>'+
+      '<td class="amt">'+fmt(wk.grossBonus||0)+'</td>'+
+      '<td class="amt" style="color:var(--orange)">'+fmt(wk.arcadeTotal||0)+'</td>'+
+      '<td class="amt rd">'+fmt(cbTot)+'</td><td class="amt gr">'+fmt(net)+'</td>'+
+      '<td style="font-size:11px;color:var(--gray)">'+fmtDT(wk.loadedAt)+'</td>'+
+      '<td><button class="btn btn-d btn-sm" onclick="delWk(\''+wk.weekStart+'\')">Delete</button></td></tr>';
+  }
+  body.innerHTML=rows;
+}
+function delWk(ws){openConf('Delete week '+ws+'?',function(){sv(SK.weeks,getWeeks().filter(function(w){return w.weekStart!==ws;}));renderWkTable();showToast('Deleted.');});}
+
+// ---- TIER ----
+function fillTierWkSel(){var sel=document.getElementById('t-wk');var wks=getWeeks();sel.innerHTML='<option value="all">All Weeks</option>';wks.sort(function(a,b){return new Date(b.weekStart)-new Date(a.weekStart);});for(var i=0;i<wks.length;i++){var o=document.createElement('option');o.value=wks[i].weekStart;o.textContent=fmtR(wks[i].weekStart,wks[i].weekEnd);sel.appendChild(o);}}
+function renderTier(){
+  var wf=document.getElementById('t-wk').value,cf=document.getElementById('t-co').value,cat=document.getElementById('t-cat').value;
+  var weeks=getWeeks();var rows='';
+  weeks.sort(function(a,b){return new Date(b.weekStart)-new Date(a.weekStart);});
+  for(var w=0;w<weeks.length;w++){var wk=weeks[w];if(wf!=='all'&&wk.weekStart!==wf)continue;
+    for(var r=0;r<wk.reps.length;r++){var rep=wk.reps[r];if(cf!=='all'&&liveCoach(rep)!==cf)continue;
+      var c=calcRep(rep);if(cat==='voice'&&c.voice.tier==='No Tier')continue;if(cat==='acc'&&c.acc.tier==='No Tier')continue;
+      var flag=c.voice.tier==='No Tier'&&c.acc.tier==='No Tier'?'<span style="color:var(--red);font-weight:700">\uD83D\uDD34 BOTH</span>':c.voice.tier==='No Tier'?'<span style="color:var(--red);font-weight:700">\uD83D\uDD34 ACTS</span>':c.acc.tier==='No Tier'?'<span style="color:var(--red);font-weight:700">\uD83D\uDD34 ACC</span>':'<span style="color:var(--green);font-weight:700">\u2705</span>';
+      rows+='<tr><td><strong>'+esc(rep.full_name)+'</strong></td><td>'+esc(liveCoach(rep))+'</td><td>'+esc(liveStore(rep)||'\u2014')+'</td><td style="font-size:11px;color:var(--gray)">'+fmtR(wk.weekStart,wk.weekEnd)+'</td><td>'+tb(c.voice.tier)+'</td><td>'+c.voice.lines+'</td><td>'+tb(c.acc.tier)+'</td><td>'+fmt(rep.totaccessoryprofit)+'</td><td>'+flag+'</td></tr>';
+    }
+  }
+  document.getElementById('tier-body').innerHTML=rows||'<tr><td colspan="9" style="text-align:center;color:var(--gray);padding:20px">No data.</td></tr>';
+}
+</script>
+
+<script>
+// ---- REP ROSTER ----
+function renderRoster(){
+  var srch=(document.getElementById('ro-srch').value||'').toLowerCase();
+  var cf=document.getElementById('ro-co').value,sf=document.getElementById('ro-st').value;
+  var roster=getRoster();
+  var reviewCount=0;
+  for(var rc=0;rc<roster.length;rc++){if(roster[rc].needsReview)reviewCount++;}
+  var banner=document.getElementById('ro-review-banner');
+  if(banner){
+    if(reviewCount>0){banner.style.display='block';banner.innerHTML='\u26A0\uFE0F <strong>'+reviewCount+' rep(s) auto-added from reports</strong> need a coach and store assigned. They are highlighted below.';}
+    else{banner.style.display='none';}
+  }
+  var filt=[];
+  for(var i=0;i<roster.length;i++){
+    var r=roster[i];
+    if(srch&&(r.name||'').toLowerCase().indexOf(srch)<0&&(r.ntid||'').toLowerCase().indexOf(srch)<0)continue;
+    if(cf!=='all'&&r.coach!==cf)continue;
+    if(sf!=='all'&&r.state!==sf)continue;
+    filt.push({rep:r,idx:i});
+  }
+  filt.sort(function(a,b){
+    if(!!a.rep.needsReview!==!!b.rep.needsReview)return a.rep.needsReview?-1:1;
+    var al=((a.rep.name||'').split(' ').pop()||'').toLowerCase();var bl=((b.rep.name||'').split(' ').pop()||'').toLowerCase();return al<bl?-1:al>bl?1:0;});
+  var rows='';
+  for(var j=0;j<filt.length;j++){var rep=filt[j].rep;var idx=filt[j].idx;
+    var hl=rep.needsReview?' style="background:#fff8e1"':'';
+    var nameCell=rep.needsReview?'<strong>'+esc(rep.name)+'</strong> <span class="flb" style="font-size:9px;padding:2px 6px">\u26A0\uFE0F NEW \u2014 ASSIGN</span>':'<strong>'+esc(rep.name)+'</strong>';
+    rows+='<tr'+hl+'><td>'+nameCell+'</td><td style="font-size:11px;color:var(--gray)">'+esc(rep.ntid)+'</td>'+
+      '<td>'+esc(rep.state||'')+'</td><td>'+esc(rep.store||'\u2014')+'</td><td>'+esc(rep.coach||'TBD')+'</td>'+
+      '<td style="display:flex;gap:6px"><button class="btn btn-s btn-sm" onclick="openEditRep('+idx+')">Edit</button><button class="btn btn-d btn-sm" onclick="delRep('+idx+')">Del</button></td></tr>';
+  }
+  document.getElementById('ro-body').innerHTML=rows||'<tr><td colspan="6" style="text-align:center;color:var(--gray);padding:20px">No reps found.</td></tr>';
+}
+function fillStoreSelect(selectedStore){
+  var stores=getStores();var sel=document.getElementById('re-store');sel.innerHTML='';
+  var blank=document.createElement('option');blank.value='';blank.textContent='\u2014 Select store \u2014';sel.appendChild(blank);
+  stores.slice().sort(function(a,b){return a.store<b.store?-1:1;}).forEach(function(s){
+    var o=document.createElement('option');o.value=s.store;o.textContent=s.store;sel.appendChild(o);
+  });
+  if(selectedStore)sel.value=selectedStore;
+}
+function openAddRep(){
+  editRepIdx=-1;document.getElementById('mo-rep-t').textContent='Add Rep';
+  document.getElementById('re-name').value='';document.getElementById('re-ntid').value='';
+  document.getElementById('re-state').value='RI';fillStoreSelect('');
+  document.getElementById('re-coach').value='TBD';om('mo-rep');
+}
+function openEditRep(idx){
+  editRepIdx=idx;var r=getRoster()[idx];
+  document.getElementById('mo-rep-t').textContent='Edit Rep';
+  document.getElementById('re-name').value=r.name||'';document.getElementById('re-ntid').value=r.ntid||'';
+  document.getElementById('re-state').value=r.state||'RI';fillStoreSelect(r.store||'');
+  document.getElementById('re-coach').value=r.coach||'TBD';om('mo-rep');
+}
+function saveRep(){
+  var roster=getRoster();
+  var rep={name:document.getElementById('re-name').value.trim(),
+    ntid:document.getElementById('re-ntid').value.trim().toLowerCase(),
+    state:document.getElementById('re-state').value,
+    store:document.getElementById('re-store').value,
+    coach:document.getElementById('re-coach').value};
+  if(!rep.name||!rep.ntid){showToast('Name and NTID required.');return;}
+  // Auto-fill coach from store if TBD
+  if(rep.coach==='TBD'&&rep.store){
+    var stores=getStores();
+    for(var i=0;i<stores.length;i++){if(stores[i].store===rep.store&&stores[i].coach&&stores[i].coach!=='TBD'){rep.coach=stores[i].coach;break;}}
+  }
+  // Saving via the edit form clears the review flag
+  rep.needsReview=false;
+  if(editRepIdx===-1){
+    // Prevent duplicate NTID
+    for(var d=0;d<roster.length;d++){if(roster[d].ntid.toLowerCase()===rep.ntid){showToast('NTID already exists in roster.');return;}}
+    roster.push(rep);
+  }else{roster[editRepIdx]=rep;}
+  sv(SK.roster,roster);cm('mo-rep');renderRoster();showToast('Rep saved to roster.');
+}
+function delRep(idx){openConf('Remove rep from roster?',function(){var r=getRoster();r.splice(idx,1);sv(SK.roster,r);renderRoster();showToast('Removed.');});}
+function exportRosterCSV(){
+  var r=getRoster();var csv='Full Name,NTID,State,Home Store,Coach\n';
+  for(var i=0;i<r.length;i++)csv+='"'+(r[i].name||'')+'","'+(r[i].ntid||'')+'","'+(r[i].state||'')+'","'+(r[i].store||'')+'","'+(r[i].coach||'')+'"\n';
+  dlFile('edgelink_rep_roster.csv',csv,'text/csv');
+}
+
+// ---- STORE ROSTER ----
+function renderStores(){
+  var srch=(document.getElementById('so-srch').value||'').toLowerCase();
+  var sf=document.getElementById('so-st').value,cf=document.getElementById('so-co').value;
+  var stores=getStores();var rows='';
+  for(var i=0;i<stores.length;i++){
+    var s=stores[i];
+    if(srch&&(s.store||'').toLowerCase().indexOf(srch)<0&&(s.manager||'').toLowerCase().indexOf(srch)<0)continue;
+    if(sf!=='all'&&s.state!==sf)continue;
+    if(cf!=='all'&&s.coach!==cf)continue;
+    rows+='<tr><td><strong>'+esc(s.store)+'</strong></td><td>'+esc(s.state)+'</td>'+
+      '<td><span class="badge '+(s.tier==='1ME'?'b1me':'b2me')+'">'+esc(s.tier)+'</span></td>'+
+      '<td>'+esc(s.manager||'\u2014')+'</td><td>'+esc(s.coach||'TBD')+'</td>'+
+      '<td style="display:flex;gap:6px"><button class="btn btn-s btn-sm" onclick="openEditStore('+i+')">Edit</button><button class="btn btn-d btn-sm" onclick="delStore('+i+')">Del</button></td></tr>';
+  }
+  document.getElementById('so-body').innerHTML=rows||'<tr><td colspan="6" style="text-align:center;color:var(--gray);padding:20px">No stores found.</td></tr>';
+}
+function openAddStore(){
+  editStoreIdx=-1;document.getElementById('mo-store-t').textContent='Add Store';
+  document.getElementById('se-name').value='';document.getElementById('se-state').value='RI';
+  document.getElementById('se-tier').value='2ME';document.getElementById('se-mgr').value='';
+  document.getElementById('se-coach').value='TBD';om('mo-store');
+}
+function openEditStore(idx){
+  editStoreIdx=idx;var s=getStores()[idx];
+  document.getElementById('mo-store-t').textContent='Edit Store';
+  document.getElementById('se-name').value=s.store||'';document.getElementById('se-state').value=s.state||'RI';
+  document.getElementById('se-tier').value=s.tier||'2ME';document.getElementById('se-mgr').value=s.manager||'';
+  document.getElementById('se-coach').value=s.coach||'TBD';om('mo-store');
+}
+function saveStore(){
+  var stores=getStores();
+  var s={store:document.getElementById('se-name').value.trim(),
+    state:document.getElementById('se-state').value,
+    tier:document.getElementById('se-tier').value,
+    manager:document.getElementById('se-mgr').value.trim(),
+    coach:document.getElementById('se-coach').value};
+  if(!s.store){showToast('Store name required.');return;}
+  if(editStoreIdx===-1){
+    for(var d=0;d<stores.length;d++){if(stores[d].store===s.store){showToast('Store already exists.');return;}}
+    stores.push(s);
+  }else{stores[editStoreIdx]=s;}
+  stores.sort(function(a,b){return a.store<b.store?-1:1;});
+  sv(SK.stores,stores);cm('mo-store');renderStores();showToast('Store saved.');
+}
+function delStore(idx){openConf('Remove this store?',function(){var s=getStores();s.splice(idx,1);sv(SK.stores,s);renderStores();showToast('Removed.');});}
+function exportStoresCSV(){
+  var s=getStores();var csv='Store,State,Tier,Manager,Coach\n';
+  for(var i=0;i<s.length;i++)csv+='"'+(s[i].store||'')+'","'+(s[i].state||'')+'","'+(s[i].tier||'')+'","'+(s[i].manager||'')+'","'+(s[i].coach||'')+'"\n';
+  dlFile('edgelink_store_roster.csv',csv,'text/csv');
+}
+
+// ---- RULES ----
+function renderRules(){
+  var r=getRules();var grid=document.getElementById('rules-grid');
+  var vR='';for(var i=0;i<r.vt.length;i++){var t=r.vt[i];var lbl=t.max>=9999?t.min+'+':t.min+'\u2013'+t.max;
+    vR+='<div class="rr"><label>T'+(i+1)+' ('+lbl+' lines) $/voice</label><input type="number" id="vtp-'+i+'" value="'+t.pay+'" min="0" step="0.5"></div>'+
+      '<div class="rr"><label>T'+(i+1)+' min lines</label><input type="number" id="vtm-'+i+'" value="'+t.min+'" min="0"></div>';}
+  var aR='';for(var k=0;k<r.at.length;k++){var at=r.at[k];var al=at.max>=999999?'$'+at.min+'+':'$'+at.min+'\u2013$'+at.max;
+    aR+='<div class="rr"><label>'+al+'</label><input type="number" id="atp-'+k+'" value="'+at.pct+'" min="0" max="100" step="0.5"> <span style="font-size:12px;color:var(--gray)">%</span></div>';}
+  grid.innerHTML=
+    '<div class="rb"><h4>Voice Tier Payouts</h4>'+vR+'</div>'+
+    '<div class="rb"><h4>Accessory Tier %</h4>'+aR+'</div>'+
+    '<div class="rb"><h4>Weekly Bonus Rates</h4>'+
+      '<div class="rr"><label>Upgrade $/each</label><input type="number" id="r-upg" value="'+r.upg+'" min="0"></div>'+
+      '<div class="rr"><label>MIM $/line</label><input type="number" id="r-mpp" value="'+r.mpp+'" min="0"></div></div>'+
+    '<div class="rb"><h4>Arcade Daily Rates (Info Only)</h4>'+
+      '<div class="rr"><label>HSI $/each</label><input type="number" id="r-hsi" value="'+r.arc.hsi+'" min="0"></div>'+
+      '<div class="rr"><label>BTS/Tablet $/each</label><input type="number" id="r-bts" value="'+r.arc.bts+'" min="0"></div></div>'+
+    '<div class="rb"><h4>Decelerator</h4>'+
+      '<div class="rr"><label>Retention Threshold %</label><input type="number" id="r-drt" value="'+r.drt+'" min="0" max="100"></div>'+
+      '<div class="rr"><label>Decel Factor (0\u20131)</label><input type="number" id="r-df" value="'+r.df+'" min="0" max="1" step="0.1"></div></div>'+
+    '<div class="rb"><h4>Chargeback</h4>'+
+      '<div class="rr"><label>Flag Threshold ($)</label><input type="number" id="r-cbf" value="'+r.cbFlag+'" min="0" step="1"></div></div>';
+}
+function saveRules(){
+  var r=getRules();
+  for(var i=0;i<r.vt.length;i++){r.vt[i].pay=parseFloat(document.getElementById('vtp-'+i).value)||0;r.vt[i].min=parseInt(document.getElementById('vtm-'+i).value)||0;}
+  for(var k=0;k<r.at.length;k++)r.at[k].pct=parseFloat(document.getElementById('atp-'+k).value)||0;
+  r.upg=parseFloat(document.getElementById('r-upg').value)||0;
+  r.mpp=parseFloat(document.getElementById('r-mpp').value)||0;
+  r.arc.hsi=parseFloat(document.getElementById('r-hsi').value)||0;
+  r.arc.bts=parseFloat(document.getElementById('r-bts').value)||0;
+  r.drt=parseFloat(document.getElementById('r-drt').value)||57;
+  r.df=parseFloat(document.getElementById('r-df').value)||0.5;
+  r.cbFlag=parseFloat(document.getElementById('r-cbf').value)||40;
+  sv(SK.rules,r);showToast('Rules saved!');
+}
+function resetRules(){openConf('Reset all rules to default?',function(){sv(SK.rules,JSON.parse(JSON.stringify(DRULES)));renderRules();showToast('Reset.');});}
+</script>
+
+<script>
+// ---- EXPORT PDF ----
+function renderExport(){fillExportWk();fillExportRep();}
+function fillExportWk(){var sel=document.getElementById('ex-wk');var wks=getWeeks();sel.innerHTML='<option value="">Select week\u2026</option>';wks.sort(function(a,b){return new Date(b.weekStart)-new Date(a.weekStart);});for(var i=0;i<wks.length;i++){var o=document.createElement('option');o.value=wks[i].weekStart;o.textContent=fmtR(wks[i].weekStart,wks[i].weekEnd);sel.appendChild(o);}}
+function fillExportRep(){var sel=document.getElementById('ex-rep');if(!sel)return;var wk=getLatestWeek();sel.innerHTML='<option value="all">All Reps</option>';if(!wk)return;var sorted=wk.reps.slice().sort(function(a,b){return a.full_name<b.full_name?-1:1;});for(var i=0;i<sorted.length;i++){var o=document.createElement('option');o.value=sorted[i].ntid;o.textContent=sorted[i].full_name;sel.appendChild(o);}}
+
+function tierLabel(t){
+  if(t==='No Tier')return'No Tier';
+  return'Tier '+String(t).replace('T','');
+}
+
+// Draw one rep's slip onto the CURRENT page of doc. Returns nothing.
+function drawSlip(doc,rep,week){
+  var PW=612,PH=792,M=40,y=M;var r=getRules();
+  var c=calcRep(rep);
+  var cbd=cbForWeek(rep.ntid,week.weekStart);var net=Math.max(0,c.weeklyBonus-cbd.total);
+  doc.setFillColor(74,27,92);doc.rect(M,y,PW-M*2,48,'F');
+  doc.setTextColor(255,255,255);doc.setFont('helvetica','bold');doc.setFontSize(22);doc.text('EDGELINK',M+12,y+28);
+  doc.setFontSize(9);doc.setFont('helvetica','normal');doc.text('WEEKLY BONUS SLIP',M+12,y+42);
+  doc.setFontSize(10);doc.text(fmtR(week.weekStart,week.weekEnd),PW-M-12,y+22,{align:'right'});
+  doc.text(liveCoach(rep)+' | '+liveStore(rep),PW-M-12,y+38,{align:'right'});y+=60;
+  doc.setFillColor(226,0,116);doc.rect(M,y,PW-M*2,36,'F');
+  doc.setTextColor(255,255,255);doc.setFont('helvetica','bold');doc.setFontSize(14);doc.text(rep.full_name.toUpperCase(),M+12,y+24);
+  doc.setFontSize(9);doc.setFont('helvetica','normal');doc.text(rep.ntid.toUpperCase(),PW-M-12,y+24,{align:'right'});y+=48;
+  if(c.voice.decel){doc.setFillColor(255,243,205);doc.rect(M,y,PW-M*2,18,'F');doc.setTextColor(133,100,4);doc.setFontSize(9);doc.setFont('helvetica','bold');doc.text('! 50% Decelerator Applied - Retention below 57%',M+8,y+13);y+=24;}
+  y+=4;
+  var CX=[M,250,PW-M-90];
+  doc.setFillColor(74,27,92);doc.rect(M,y,PW-M*2,16,'F');
+  doc.setTextColor(255,255,255);doc.setFont('helvetica','bold');doc.setFontSize(9);doc.text('WEEKLY BONUS',M+6,y+12);y+=18;
+  var pvp=c.voice.idx>=0?r.vt[c.voice.idx].pay:0;
+  var bRows=[
+    ['Voice ('+tierLabel(c.voice.tier)+')',Math.max(0,rep.voice_acts||0)+' acts x $'+pvp,fmt(c.voice.payout)],
+    ['MIM',(rep.mim_acts||0)+' lines x $'+r.mpp,fmt(c.mim)],
+    ['Accessories',tierLabel(c.acc.tier)+' - '+c.acc.pct+'% of '+fmt(rep.totaccessoryprofit),fmt(c.acc.payout)],
+    ['Upgrades',(rep.upgrade_count||0)+' x $'+r.upg,fmt(c.upg)]
+  ];
+  doc.setFontSize(9);
+  var lowTier=(c.voice.tier==='T1'||c.voice.tier==='No Tier');
+  for(var row=0;row<bRows.length;row++){
+    var bg=row%2===0?[255,255,255]:[248,248,252];
+    if(row===0&&lowTier)bg=[255,235,235];
+    doc.setFillColor(bg[0],bg[1],bg[2]);doc.rect(M,y,PW-M*2,16,'F');
+    if(row===0&&lowTier){doc.setTextColor(200,0,0);}else{doc.setTextColor(30,30,30);}
+    doc.setFont('helvetica','normal');doc.text(bRows[row][0],CX[0]+4,y+12);doc.text(bRows[row][1],CX[1],y+12);
+    doc.setFont('helvetica','bold');doc.text(bRows[row][2],CX[2],y+12);y+=17;
+  }
+  doc.setFillColor(240,240,245);doc.rect(M,y,PW-M*2,20,'F');
+  doc.setTextColor(74,27,92);doc.setFont('helvetica','bold');doc.setFontSize(11);
+  doc.text('WEEKLY BONUS TOTAL',CX[0]+4,y+14);doc.text(fmt(c.weeklyBonus),CX[2],y+14);y+=26;
+  doc.setFillColor(255,237,213);doc.rect(M,y,PW-M*2,16,'F');
+  doc.setTextColor(200,100,0);doc.setFont('helvetica','bold');doc.setFontSize(9);
+  doc.text('ARCADE DAILY - PAID SEPARATELY (NOT IN WEEKLY BONUS)',M+6,y+12);y+=18;
+  var aRows=[['HSI',(rep.hsi_acts||0)+' x $'+r.arc.hsi,fmt(c.arc.hsi)],['Tablets / BTS',(rep.bts_acts||0)+' x $'+r.arc.bts,fmt(c.arc.bts)]];
+  for(var ar=0;ar<aRows.length;ar++){
+    doc.setFillColor(255,248,240);doc.rect(M,y,PW-M*2,15,'F');
+    doc.setTextColor(180,90,0);doc.setFont('helvetica','normal');doc.text(aRows[ar][0],CX[0]+4,y+11);doc.text(aRows[ar][1],CX[1],y+11);
+    doc.setFont('helvetica','bold');doc.text(aRows[ar][2],CX[2],y+11);y+=16;
+  }
+  doc.setFillColor(255,237,213);doc.rect(M,y,PW-M*2,16,'F');
+  doc.setTextColor(180,90,0);doc.setFont('helvetica','bold');doc.text('ARCADE DAILY TOTAL',CX[0]+4,y+12);doc.text(fmt(c.arcade),CX[2],y+12);y+=22;
+  if(cbd.items.length>0){
+    doc.setFillColor(255,235,235);doc.rect(M,y,PW-M*2,16,'F');
+    doc.setTextColor(180,0,0);doc.setFont('helvetica','bold');doc.text('CHARGEBACK DEDUCTIONS',M+6,y+12);y+=18;
+    for(var ci=0;ci<cbd.items.length;ci++){
+      var cbi=cbd.items[ci];doc.setFillColor(255,245,245);doc.rect(M,y,PW-M*2,15,'F');
+      doc.setFont('helvetica','normal');doc.setTextColor(200,0,0);
+      var cbTxt=cbi.category+(cbi.notes?' - '+cbi.notes:'');
+      if(cbTxt.length>44)cbTxt=cbTxt.substring(0,41)+'...';
+      doc.text(cbTxt,CX[0]+4,y+11);doc.text(fmtD(cbi.date),CX[1],y+11);
+      doc.setFont('helvetica','bold');doc.text('-'+fmt(cbi.amount),CX[2],y+11);y+=16;
+    }
+    doc.setFillColor(255,235,235);doc.rect(M,y,PW-M*2,16,'F');
+    doc.setFont('helvetica','bold');doc.setFontSize(10);doc.setTextColor(180,0,0);
+    doc.text('TOTAL CHARGEBACKS',CX[0]+4,y+12);doc.text('-'+fmt(cbd.total),CX[2],y+12);y+=22;
+  }
+  doc.setFillColor(226,0,116);doc.rect(M,y,PW-M*2,26,'F');
+  doc.setTextColor(255,255,255);doc.setFont('helvetica','bold');doc.setFontSize(14);
+  doc.text('NET WEEKLY BONUS',CX[0]+4,y+18);doc.text(fmt(net),CX[2],y+18);y+=32;
+  var allCBs=getCBs();var totBal=0;
+  for(var ob=0;ob<allCBs.length;ob++){if(allCBs[ob].ntid.toLowerCase()===rep.ntid.toLowerCase())totBal+=cbBal(allCBs[ob]).balance;}
+  if(totBal>0.01){
+    doc.setFillColor(255,243,205);doc.rect(M,y,PW-M*2,18,'F');
+    doc.setTextColor(133,100,4);doc.setFont('helvetica','bold');doc.setFontSize(9);
+    doc.text('Outstanding Chargeback Balance: '+fmt(totBal),M+8,y+13);y+=22;
+  }
+  doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(150,150,150);
+  doc.text('EdgeLink Inc. | hr@edgelincinc.com | 423-747-0429 | 719 Bald Hill Rd, Warwick RI 02886',PW/2,PH-M-8,{align:'center'});
+}
+
+function slipFileName(rep,ws){return'BonusSlip_'+rep.full_name.replace(/[^A-Za-z0-9]+/g,'_')+'_'+ws+'.pdf';}
+
+// Admin export: one multi-page PDF (unchanged behavior)
+function exportPDFs(){
+  if(typeof window.jsPDF==='undefined'){document.getElementById('ex-status').textContent='\u23F3 PDF library loading, try again in a moment\u2026';return;}
+  var ws=document.getElementById('ex-wk').value;
+  var cf=document.getElementById('ex-co').value,rf=document.getElementById('ex-rep').value;
+  var stEl=document.getElementById('ex-status');
+  if(!ws){showToast('Select a week.');return;}
+  var weeks=getWeeks();var week=null;for(var i=0;i<weeks.length;i++){if(weeks[i].weekStart===ws){week=weeks[i];break;}}
+  if(!week){showToast('Week not found.');return;}
+  var reps=[];
+  for(var j=0;j<week.reps.length;j++){var rp=week.reps[j];if((cf==='all'||liveCoach(rp)===cf)&&(rf==='all'||rp.ntid===rf))reps.push(rp);}
+  if(!reps.length){showToast('No reps match filters.');return;}
+  stEl.textContent='\u23F3 Generating '+reps.length+' slip(s)\u2026';
+  setTimeout(function(){
+    try{
+      var doc=new window.jsPDF({unit:'pt',format:'letter'});
+      for(var ri=0;ri<reps.length;ri++){
+        if(ri>0)doc.addPage();
+        drawSlip(doc,reps[ri],week);
+      }
+      var fn=reps.length===1?slipFileName(reps[0],ws):'BonusSlips_'+ws+'.pdf';
+      doc.save(fn);stEl.textContent='\u2705 Downloaded '+reps.length+' slip(s).';
+    }catch(err){console.error(err);stEl.textContent='\u274C PDF error: '+err.message;}
+  },100);
+}
+
+// Admin ZIP export: same filters as exportPDFs, one PDF per rep zipped
+function exportPDFsZip(){
+  var stEl=document.getElementById('ex-status');
+  if(typeof window.jsPDF==='undefined'){stEl.textContent='\u23F3 PDF library loading, try again in a moment\u2026';return;}
+  if(typeof JSZip==='undefined'){stEl.textContent='\u23F3 ZIP library loading, try again in a moment\u2026';return;}
+  var ws=document.getElementById('ex-wk').value;
+  var cf=document.getElementById('ex-co').value,rf=document.getElementById('ex-rep').value;
+  if(!ws){showToast('Select a week.');return;}
+  var weeks=getWeeks();var week=null;for(var i=0;i<weeks.length;i++){if(weeks[i].weekStart===ws){week=weeks[i];break;}}
+  if(!week){showToast('Week not found.');return;}
+  var reps=[];
+  for(var j=0;j<week.reps.length;j++){var rp=week.reps[j];if((cf==='all'||liveCoach(rp)===cf)&&(rf==='all'||rp.ntid===rf))reps.push(rp);}
+  if(!reps.length){showToast('No reps match filters.');return;}
+  if(reps.length===1){
+    // Single rep — no point zipping
+    stEl.textContent='\u23F3 Generating slip\u2026';
+    setTimeout(function(){
+      try{
+        var doc=new window.jsPDF({unit:'pt',format:'letter'});
+        drawSlip(doc,reps[0],week);
+        doc.save(slipFileName(reps[0],ws));
+        stEl.textContent='\u2705 Downloaded 1 slip.';
+      }catch(err){console.error(err);stEl.textContent='\u274C PDF error: '+err.message;}
+    },100);
+    return;
+  }
+  stEl.textContent='\u23F3 Generating '+reps.length+' individual slips\u2026';
+  setTimeout(function(){
+    try{
+      var zip=new JSZip();
+      for(var ri=0;ri<reps.length;ri++){
+        var doc=new window.jsPDF({unit:'pt',format:'letter'});
+        drawSlip(doc,reps[ri],week);
+        zip.file(slipFileName(reps[ri],ws),doc.output('blob'));
+      }
+      var grp=(cf==='all'?'All':cf.replace(/[^A-Za-z0-9]+/g,'_'));
+      zip.generateAsync({type:'blob'}).then(function(blob){
+        var a=document.createElement('a');
+        a.href=URL.createObjectURL(blob);
+        a.download='BonusSlips_'+grp+'_'+ws+'.zip';
+        a.click();
+        stEl.textContent='\u2705 Downloaded ZIP with '+reps.length+' individual slips.';
+      });
+    }catch(err){console.error(err);stEl.textContent='\u274C ZIP error: '+err.message;}
+  },100);
+}
+
+// Coach export: single rep = one PDF; whole team = ZIP of individual PDFs
+function coachExportPDF(){
+  var stEl=document.getElementById('co-ex-status');
+  if(typeof window.jsPDF==='undefined'){stEl.textContent='\u23F3 PDF library loading, try again in a moment\u2026';return;}
+  var cf=document.getElementById('co-filter').value||'all';
+  var rf=document.getElementById('co-rep-sel').value||'all';
+  var wk=getLatestWeek();
+  if(!wk){showToast('No week loaded.');return;}
+  var reps=[];
+  for(var i=0;i<wk.reps.length;i++){var rp=wk.reps[i];if((cf==='all'||liveCoach(rp)===cf)&&(rf==='all'||rp.ntid===rf))reps.push(rp);}
+  if(!reps.length){showToast('No reps match filter.');return;}
+  if(reps.length===1){
+    stEl.textContent='\u23F3 Generating slip\u2026';
+    setTimeout(function(){
+      try{
+        var doc=new window.jsPDF({unit:'pt',format:'letter'});
+        drawSlip(doc,reps[0],wk);
+        doc.save(slipFileName(reps[0],wk.weekStart));
+        stEl.textContent='\u2705 Downloaded 1 slip.';
+      }catch(err){console.error(err);stEl.textContent='\u274C PDF error: '+err.message;}
+    },100);
+    return;
+  }
+  // Whole team → ZIP of individual PDFs
+  if(typeof JSZip==='undefined'){stEl.textContent='\u23F3 ZIP library loading, try again in a moment\u2026';return;}
+  stEl.textContent='\u23F3 Generating '+reps.length+' individual slips\u2026';
+  setTimeout(function(){
+    try{
+      var zip=new JSZip();
+      for(var ri=0;ri<reps.length;ri++){
+        var doc=new window.jsPDF({unit:'pt',format:'letter'});
+        drawSlip(doc,reps[ri],wk);
+        zip.file(slipFileName(reps[ri],wk.weekStart),doc.output('blob'));
+      }
+      var teamName=(cf==='all'?'All_Teams':cf.replace(/[^A-Za-z0-9]+/g,'_'));
+      zip.generateAsync({type:'blob'}).then(function(blob){
+        var a=document.createElement('a');
+        a.href=URL.createObjectURL(blob);
+        a.download='TeamSlips_'+teamName+'_'+wk.weekStart+'.zip';
+        a.click();
+        stEl.textContent='\u2705 Downloaded ZIP with '+reps.length+' individual slips.';
+      });
+    }catch(err){console.error(err);stEl.textContent='\u274C ZIP error: '+err.message;}
+  },100);
+}
+
+// ---- PAY STRUCTURE PAGE (live from rules) ----
+function buildStructureHTML(){
+  var r=getRules();
+  function tierRow(lbl,val){return '<tr><td style="padding:8px 12px;font-weight:600;border-bottom:1px solid var(--gl)">'+lbl+'</td><td style="padding:8px 12px;font-weight:700;color:var(--magenta);border-bottom:1px solid var(--gl)">'+val+'</td></tr>';}
+  var vRows='';
+  for(var i=0;i<r.vt.length;i++){var t=r.vt[i];var lbl=t.max>=9999?t.min+'+ lines':t.min+'\u2013'+t.max+' lines';vRows+=tierRow(lbl,'$'+t.pay+' per voice');}
+  var aRows='';
+  for(var k=0;k<r.at.length;k++){var at=r.at[k];var al=at.max>=999999?'$'+at.min+'+':'$'+at.min+' \u2013 $'+at.max;aRows+=tierRow(al,at.pct+'% of net profit');}
+  function sec(title,color,inner){return '<div class="card"><div style="font-family:\'Bebas Neue\',sans-serif;font-size:22px;color:'+color+';margin-bottom:4px">'+title+'</div>'+inner+'</div>';}
+  function tbl(rows){return '<table style="width:100%;border-collapse:collapse;font-size:14px">'+rows+'</table>';}
+  return ''+
+  '<div style="text-align:center;margin-bottom:20px">'+
+    '<div style="font-family:\'Bebas Neue\',sans-serif;font-size:44px;color:var(--purple);letter-spacing:2px;line-height:1">GET PAID</div>'+
+    '<div style="font-size:13px;color:var(--magenta);font-weight:700;letter-spacing:1px">EVERY DAY. EVERY WEEK. EVERY MONTH.</div>'+
+    '<div style="font-size:12px;color:var(--gray);margin-top:4px">Sell more. Stack more. Get paid.</div>'+
+  '</div>'+
+  sec('\uD83D\uDCDE Voice Activation \u2014 Paid Weekly','var(--purple)',
+    '<p style="font-size:12px;color:var(--gray);margin-bottom:10px">New Voice + MIM lines determine your payout tier. You are paid on new voice activations only \u2014 upgrades and BTS do not count toward tiers.</p>'+tbl(vRows)+
+    '<div style="background:#fff3cd;border:1px solid #ffc107;border-radius:8px;padding:8px 12px;font-size:11px;font-weight:600;color:#856404;margin-top:10px">\u26A0\uFE0F If your personal retention is below '+r.drt+'%, a '+(r.df*100)+'% decelerator may be applied.</div>')+
+  sec('\uD83D\uDCF2 MIM \u2014 Paid Weekly','var(--magenta)',
+    '<p style="font-size:12px;color:var(--gray);margin-bottom:10px">MIM lines count toward your voice tier but are not paid twice.</p>'+
+    tbl(tierRow('Every MIM line','$'+r.mpp+' per line')))+
+  sec('\uD83C\uDFA7 Accessories \u2014 Paid Weekly','var(--purple)',
+    '<p style="font-size:12px;color:var(--gray);margin-bottom:10px">Paid as a percentage of your accessory net profit. Shoot for a $65 APB to maximize your payout!</p>'+tbl(aRows))+
+  sec('\uD83D\uDD04 Upgrades \u2014 Paid Weekly','var(--magenta)',
+    tbl(tierRow('Every qualifying upgrade','$'+r.upg+' each')))+
+  sec('\uD83D\uDD79 Arcade Daily \u2014 Paid Daily (Separate)','var(--orange)',
+    '<p style="font-size:12px;color:var(--gray);margin-bottom:10px">Paid daily through Arcade. These do NOT count toward tiers and are NOT part of your weekly bonus.</p>'+
+    tbl(tierRow('HSI','$'+r.arc.hsi+' each')+tierRow('Tablets / BTS','$'+r.arc.bts+' each')))+
+  sec('\uD83D\uDCC5 Features \u2014 Paid Monthly','var(--purple)',
+    '<p style="font-size:12px;color:var(--gray);margin-bottom:10px">10% payout ranging from $0.50 \u2013 $2.00 per line. Requires $6.00 average feature per line AND 60% retention. Paid monthly when both targets are met.</p>')+
+  '<div class="card" style="background:var(--purple);color:#fff;text-align:center">'+
+    '<div style="font-family:\'Bebas Neue\',sans-serif;font-size:20px;letter-spacing:1px">EVERY CUSTOMER. EVERY TIME. STACK EVERY DEAL.</div>'+
+    '<div style="font-size:11px;opacity:.8;margin-top:4px">Hit your goals. Maximize your paycheck.</div>'+
+  '</div>';
+}
+
+// ---- COACH VIEWS ----
+function fillCoachFilters(){
+  ['co-filter','ct-filter','ccb-filter'].forEach(function(id){
+    var sel=document.getElementById(id);if(!sel)return;
+    sel.innerHTML='<option value="all">All Teams</option>';
+    for(var i=0;i<COACHES.length;i++){var o=document.createElement('option');o.value=COACHES[i];o.textContent=COACHES[i];sel.appendChild(o);}
+  });
+}
+function coachTeamReps(coachFilter){
+  var wk=getLatestWeek();if(!wk)return{week:null,reps:[]};
+  var out=[];
+  for(var i=0;i<wk.reps.length;i++){var rep=wk.reps[i];if(coachFilter==='all'||liveCoach(rep)===coachFilter)out.push(rep);}
+  return{week:wk,reps:out};
+}
+function renderCoachAll(){
+  var cf=document.getElementById('co-filter').value||'all';
+  var d=coachTeamReps(cf);
+  var se=document.getElementById('cp-stats');var be=document.getElementById('cp-body');
+  var repSel=document.getElementById('co-rep-sel');
+  if(!d.week){se.innerHTML='<p style="color:var(--gray);padding:20px">No payout data loaded yet.</p>';be.innerHTML='';repSel.innerHTML='<option value="all">Whole Team</option>';return;}
+  var tB=0,tA=0,tC=0,tN=0;var rows='';
+  repSel.innerHTML='<option value="all">Whole Team</option>';
+  var sorted=d.reps.slice().sort(function(a,b){return a.full_name<b.full_name?-1:1;});
+  for(var s=0;s<sorted.length;s++){var o=document.createElement('option');o.value=sorted[s].ntid;o.textContent=sorted[s].full_name;repSel.appendChild(o);}
+  for(var i=0;i<d.reps.length;i++){
+    var rep=d.reps[i];var c=calcRep(rep);var cbd=cbForWeek(rep.ntid,d.week.weekStart);
+    var net=Math.max(0,c.weeklyBonus-cbd.total);
+    tB+=c.weeklyBonus;tA+=c.arcade;tC+=cbd.total;tN+=net;
+    rows+='<tr><td><strong>'+esc(rep.full_name)+'</strong></td>'+
+      '<td style="font-size:11px;color:var(--gray)">'+esc(rep.ntid)+'</td>'+
+      '<td>'+esc(liveStore(rep)||'\u2014')+'</td><td>'+tb(c.voice.tier)+'</td>'+
+      '<td class="amt">'+fmt(c.voice.payout)+'</td><td class="amt">'+fmt(c.mim)+'</td>'+
+      '<td class="amt">'+fmt(c.acc.payout)+'</td><td class="amt">'+fmt(c.upg)+'</td>'+
+      '<td class="amt">'+fmt(c.weeklyBonus)+'</td>'+
+      '<td class="amt" style="color:var(--orange)">'+fmt(c.arcade)+'</td>'+
+      '<td class="amt rd">'+fmt(cbd.total)+'</td><td class="amt gr">'+fmt(net)+'</td></tr>';
+  }
+  se.innerHTML=
+    '<div class="sc pu"><div class="val">'+d.reps.length+'</div><div class="lbl">Team Reps</div></div>'+
+    '<div class="sc mg"><div class="val">'+fmt(tB)+'</div><div class="lbl">Team Bonus</div></div>'+
+    '<div class="sc or"><div class="val">'+fmt(tA)+'</div><div class="lbl">Arcade (Info)</div></div>'+
+    '<div class="sc gr"><div class="val">'+fmt(tN)+'</div><div class="lbl">Net Payout</div></div>';
+  be.innerHTML=rows||'<tr><td colspan="12" style="text-align:center;color:var(--gray);padding:20px">No reps for this filter.</td></tr>';
+}
+function fillCoachTierWk(){
+  var sel=document.getElementById('ct-wk');var wks=getWeeks();
+  sel.innerHTML='<option value="all">All Weeks</option>';
+  wks.sort(function(a,b){return new Date(b.weekStart)-new Date(a.weekStart);});
+  for(var i=0;i<wks.length;i++){var o=document.createElement('option');o.value=wks[i].weekStart;o.textContent=fmtR(wks[i].weekStart,wks[i].weekEnd);sel.appendChild(o);}
+}
+function renderCoachTier(){
+  var cf=document.getElementById('ct-filter').value||'all';
+  var wf=document.getElementById('ct-wk').value||'all';
+  var weeks=getWeeks();var rows='';
+  weeks.sort(function(a,b){return new Date(b.weekStart)-new Date(a.weekStart);});
+  for(var w=0;w<weeks.length;w++){var wk=weeks[w];if(wf!=='all'&&wk.weekStart!==wf)continue;
+    for(var r=0;r<wk.reps.length;r++){var rep=wk.reps[r];if(cf!=='all'&&liveCoach(rep)!==cf)continue;
+      var c=calcRep(rep);
+      var flag=c.voice.tier==='No Tier'&&c.acc.tier==='No Tier'?'<span style="color:var(--red);font-weight:700">\uD83D\uDD34 BOTH</span>':c.voice.tier==='No Tier'?'<span style="color:var(--red);font-weight:700">\uD83D\uDD34 ACTS</span>':c.acc.tier==='No Tier'?'<span style="color:var(--red);font-weight:700">\uD83D\uDD34 ACC</span>':'<span style="color:var(--green);font-weight:700">\u2705</span>';
+      rows+='<tr><td><strong>'+esc(rep.full_name)+'</strong></td><td>'+esc(liveStore(rep)||'\u2014')+'</td><td style="font-size:11px;color:var(--gray)">'+fmtR(wk.weekStart,wk.weekEnd)+'</td><td>'+tb(c.voice.tier)+'</td><td>'+c.voice.lines+'</td><td>'+tb(c.acc.tier)+'</td><td>'+fmt(rep.totaccessoryprofit)+'</td><td>'+flag+'</td></tr>';
+    }
+  }
+  document.getElementById('ct-body').innerHTML=rows||'<tr><td colspan="8" style="text-align:center;color:var(--gray);padding:20px">No data.</td></tr>';
+}
+function renderCoachCB(){
+  var cf=document.getElementById('ccb-filter').value||'all';
+  var cbs=getCBs();var rows='';
+  for(var i=0;i<cbs.length;i++){
+    var cb=cbs[i];var rr=getRosterRep(cb.ntid);var coach=(rr&&rr.coach)?rr.coach:(cb.coach||'TBD');
+    if(cf!=='all'&&coach!==cf)continue;
+    var b=cbBal(cb);
+    rows+='<tr><td><strong>'+esc(cb.repName||cb.ntid)+'</strong></td>'+
+      '<td style="font-size:11px;color:var(--gray)">'+esc(cb.ntid)+'</td>'+
+      '<td><span class="badge bmg">'+esc(cb.category)+'</span></td><td>'+fmtD(cb.date)+'</td>'+
+      '<td class="amt">'+fmt(cb.totalOwed)+'</td><td class="amt gr">'+fmt(b.paid)+'</td>'+
+      '<td class="amt rd">'+fmt(b.balance)+'</td>'+
+      '<td><span class="badge b'+b.status.substring(0,2)+'">'+b.status.toUpperCase()+'</span></td></tr>';
+  }
+  document.getElementById('ccb-body').innerHTML=rows||'<tr><td colspan="8" style="text-align:center;color:var(--gray);padding:20px">No chargebacks for this filter.</td></tr>';
+}
+
+// ---- PAYOUT SUMMARY EXPORT ----
+function payoutRows(){
+  var wk=getLatestWeek();if(!wk)return null;
+  var rows=[];
+  for(var i=0;i<wk.reps.length;i++){
+    var rep=wk.reps[i];var c=calcRep(rep);var cbd=cbForWeek(rep.ntid,wk.weekStart);
+    rows.push({name:rep.full_name,ntid:rep.ntid,coach:liveCoach(rep),store:liveStore(rep),
+      vtier:c.voice.tier,voice:c.voice.payout,mim:c.mim,acc:c.acc.payout,upg:c.upg,
+      bonus:c.weeklyBonus,arcade:c.arcade,cb:cbd.total,net:Math.max(0,c.weeklyBonus-cbd.total)});
+  }
+  return{week:wk,rows:rows};
+}
+function exportPayoutCSV(){
+  var d=payoutRows();if(!d){showToast('No week loaded.');return;}
+  var csv='Rep Name,NTID,Coach,Store,Voice Tier,Voice $,MIM $,Acc $,Upg $,Weekly Bonus,Arcade,CB Deduct,Net Bonus\n';
+  for(var i=0;i<d.rows.length;i++){var r=d.rows[i];
+    csv+='"'+r.name+'","'+r.ntid+'","'+r.coach+'","'+r.store+'","'+r.vtier+'",'+r.voice.toFixed(2)+','+r.mim.toFixed(2)+','+r.acc.toFixed(2)+','+r.upg.toFixed(2)+','+r.bonus.toFixed(2)+','+r.arcade.toFixed(2)+','+r.cb.toFixed(2)+','+r.net.toFixed(2)+'\n';}
+  dlFile('Payout_Summary_'+d.week.weekStart+'.csv',csv,'text/csv');
+  showToast('CSV downloaded.');
+}
+function exportPayoutPDF(){
+  if(typeof window.jsPDF==='undefined'){showToast('PDF library loading, try again.');return;}
+  var d=payoutRows();if(!d){showToast('No week loaded.');return;}
+  var doc=new window.jsPDF({unit:'pt',format:'letter',orientation:'landscape'});
+  var PW=792,PH=612,M=30,y=M;
+  doc.setFillColor(74,27,92);doc.rect(M,y,PW-M*2,40,'F');
+  doc.setTextColor(255,255,255);doc.setFont('helvetica','bold');doc.setFontSize(18);doc.text('EDGELINK',M+10,y+22);
+  doc.setFontSize(8);doc.setFont('helvetica','normal');doc.text('COMPANY PAYOUT SUMMARY',M+10,y+34);
+  doc.setFontSize(9);doc.text(fmtR(d.week.weekStart,d.week.weekEnd),PW-M-10,y+24,{align:'right'});y+=48;
+  var cols=['Rep','Coach','Store','Tier','Voice','MIM','Acc','Upg','Bonus','Arcade','CB','Net'];
+  var cx=[M,150,240,360,400,445,485,525,560,610,665,705];
+  doc.setFillColor(240,240,245);doc.rect(M,y,PW-M*2,14,'F');
+  doc.setTextColor(74,27,92);doc.setFont('helvetica','bold');doc.setFontSize(7);
+  for(var h=0;h<cols.length;h++)doc.text(cols[h],cx[h]+2,y+10);
+  y+=15;
+  doc.setFontSize(7);
+  for(var i=0;i<d.rows.length;i++){
+    if(y>PH-M-20){doc.addPage();y=M;}
+    var r=d.rows[i];var bg=i%2===0?[255,255,255]:[248,248,252];
+    doc.setFillColor(bg[0],bg[1],bg[2]);doc.rect(M,y,PW-M*2,12,'F');
+    doc.setTextColor(30,30,30);doc.setFont('helvetica','normal');
+    var nm=r.name.length>24?r.name.substring(0,22)+'..':r.name;
+    var st=r.store.length>20?r.store.substring(0,18)+'..':r.store;
+    doc.text(nm,cx[0]+2,y+9);doc.text(r.coach,cx[1]+2,y+9);doc.text(st,cx[2]+2,y+9);doc.text(r.vtier,cx[3]+2,y+9);
+    doc.text(fmt(r.voice),cx[4]+2,y+9);doc.text(fmt(r.mim),cx[5]+2,y+9);doc.text(fmt(r.acc),cx[6]+2,y+9);doc.text(fmt(r.upg),cx[7]+2,y+9);
+    doc.setFont('helvetica','bold');doc.text(fmt(r.bonus),cx[8]+2,y+9);doc.setFont('helvetica','normal');
+    doc.text(fmt(r.arcade),cx[9]+2,y+9);doc.text(fmt(r.cb),cx[10]+2,y+9);
+    doc.setFont('helvetica','bold');doc.text(fmt(r.net),cx[11]+2,y+9);
+    y+=12;
+  }
+  // Totals row
+  var tB=0,tA=0,tC=0,tN=0;
+  for(var t=0;t<d.rows.length;t++){tB+=d.rows[t].bonus;tA+=d.rows[t].arcade;tC+=d.rows[t].cb;tN+=d.rows[t].net;}
+  if(y>PH-M-20){doc.addPage();y=M;}
+  doc.setFillColor(226,0,116);doc.rect(M,y,PW-M*2,14,'F');
+  doc.setTextColor(255,255,255);doc.setFont('helvetica','bold');doc.setFontSize(8);
+  doc.text('TOTALS ('+d.rows.length+' reps)',cx[0]+2,y+10);
+  doc.text(fmt(tB),cx[8]+2,y+10);doc.text(fmt(tA),cx[9]+2,y+10);doc.text(fmt(tC),cx[10]+2,y+10);doc.text(fmt(tN),cx[11]+2,y+10);
+  doc.save('Payout_Summary_'+d.week.weekStart+'.pdf');
+  showToast('PDF downloaded.');
+}
+
+// ---- TIER ACHIEVEMENT EXPORT ----
+function tierRows(){
+  var wf=document.getElementById('t-wk').value,cf=document.getElementById('t-co').value,cat=document.getElementById('t-cat').value;
+  var weeks=getWeeks();var out=[];
+  weeks.sort(function(a,b){return new Date(b.weekStart)-new Date(a.weekStart);});
+  for(var w=0;w<weeks.length;w++){var wk=weeks[w];if(wf!=='all'&&wk.weekStart!==wf)continue;
+    for(var r=0;r<wk.reps.length;r++){var rep=wk.reps[r];if(cf!=='all'&&liveCoach(rep)!==cf)continue;
+      var c=calcRep(rep);
+      if(cat==='voice'&&c.voice.tier==='No Tier')continue;
+      if(cat==='acc'&&c.acc.tier==='No Tier')continue;
+      var flag=c.voice.tier==='No Tier'&&c.acc.tier==='No Tier'?'BOTH':c.voice.tier==='No Tier'?'ACTS':c.acc.tier==='No Tier'?'ACC':'OK';
+      out.push({name:rep.full_name,coach:liveCoach(rep),store:liveStore(rep),week:fmtR(wk.weekStart,wk.weekEnd),
+        vtier:c.voice.tier,lines:c.voice.lines,atier:c.acc.tier,profit:rep.totaccessoryprofit||0,flag:flag});
+    }
+  }
+  return out;
+}
+function exportTierCSV(){
+  var rows=tierRows();if(!rows.length){showToast('No data to export.');return;}
+  var csv='Rep Name,Coach,Store,Week,Voice Tier,Total Lines,Acc Tier,Acc Profit,Flag\n';
+  for(var i=0;i<rows.length;i++){var r=rows[i];
+    csv+='"'+r.name+'","'+r.coach+'","'+r.store+'","'+r.week+'","'+r.vtier+'",'+r.lines+',"'+r.atier+'",'+r.profit.toFixed(2)+',"'+r.flag+'"\n';}
+  dlFile('Tier_Achievement.csv',csv,'text/csv');
+  showToast('CSV downloaded.');
+}
+function exportTierPDF(){
+  if(typeof window.jsPDF==='undefined'){showToast('PDF library loading, try again.');return;}
+  var rows=tierRows();if(!rows.length){showToast('No data to export.');return;}
+  var doc=new window.jsPDF({unit:'pt',format:'letter',orientation:'landscape'});
+  var PW=792,PH=612,M=30,y=M;
+  doc.setFillColor(74,27,92);doc.rect(M,y,PW-M*2,40,'F');
+  doc.setTextColor(255,255,255);doc.setFont('helvetica','bold');doc.setFontSize(18);doc.text('EDGELINK',M+10,y+22);
+  doc.setFontSize(8);doc.setFont('helvetica','normal');doc.text('TIER ACHIEVEMENT REPORT',M+10,y+34);
+  doc.setFontSize(9);doc.text(new Date().toLocaleDateString(),PW-M-10,y+24,{align:'right'});y+=48;
+  var cols=['Rep','Coach','Store','Week','Voice Tier','Lines','Acc Tier','Acc Profit','Flag'];
+  var cx=[M,160,255,395,500,555,595,650,710];
+  doc.setFillColor(240,240,245);doc.rect(M,y,PW-M*2,14,'F');
+  doc.setTextColor(74,27,92);doc.setFont('helvetica','bold');doc.setFontSize(7);
+  for(var h=0;h<cols.length;h++)doc.text(cols[h],cx[h]+2,y+10);
+  y+=15;doc.setFontSize(7);
+  for(var i=0;i<rows.length;i++){
+    if(y>PH-M-20){doc.addPage();y=M;}
+    var r=rows[i];var bg=i%2===0?[255,255,255]:[248,248,252];
+    doc.setFillColor(bg[0],bg[1],bg[2]);doc.rect(M,y,PW-M*2,12,'F');
+    var fc=r.flag==='OK'?[46,125,50]:[200,0,0];
+    doc.setTextColor(30,30,30);doc.setFont('helvetica','normal');
+    var nm=r.name.length>26?r.name.substring(0,24)+'..':r.name;
+    var st=r.store.length>24?r.store.substring(0,22)+'..':r.store;
+    doc.text(nm,cx[0]+2,y+9);doc.text(r.coach,cx[1]+2,y+9);doc.text(st,cx[2]+2,y+9);doc.text(r.week,cx[3]+2,y+9);
+    doc.text(r.vtier,cx[4]+2,y+9);doc.text(String(r.lines),cx[5]+2,y+9);doc.text(r.atier,cx[6]+2,y+9);doc.text(fmt(r.profit),cx[7]+2,y+9);
+    doc.setTextColor(fc[0],fc[1],fc[2]);doc.setFont('helvetica','bold');doc.text(r.flag,cx[8]+2,y+9);
+    y+=12;
+  }
+  doc.save('Tier_Achievement.pdf');
+  showToast('PDF downloaded.');
+}
+
+// ---- UTILS ----
+function fmt(n){return'$'+parseFloat(n||0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,',');}
+function fmtD(d){if(!d)return'';var dt=new Date(d+'T00:00:00');if(isNaN(dt))return d;return(dt.getMonth()+1)+'/'+dt.getDate()+'/'+dt.getFullYear();}
+function fmtR(s,e){return fmtD(s)+' \u2013 '+fmtD(e);}
+function fmtDT(iso){if(!iso)return'';var d=new Date(iso);return(d.getMonth()+1)+'/'+d.getDate()+' '+d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});}
+function esc(s){return String(s===undefined||s===null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function tb(t){var m={'No Tier':'bnt','T1':'bt1','T2':'bt2','T3':'bt3','T4':'bt4','T5':'bt5'};return'<span class="badge '+(m[t]||'bnt')+'">'+t+'</span>';}
+function showToast(msg){var t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(function(){t.classList.remove('show');},2800);}
+function om(id){document.getElementById(id).classList.add('open');}
+function cm(id){document.getElementById(id).classList.remove('open');}
+function dlFile(name,content,type){var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([content],{type:type}));a.download=name;a.click();}
+function openConf(msg,cb){document.getElementById('conf-msg').textContent=msg;confCBfn=cb;om('mo-confirm');}
+document.getElementById('conf-ok').onclick=function(){cm('mo-confirm');if(confCBfn)confCBfn();};
+(function(){
+  var mos=document.querySelectorAll('.mo');
+  for(var i=0;i<mos.length;i++){(function(el){el.addEventListener('click',function(e){if(e.target===el)el.classList.remove('open');});})(mos[i]);}
+})();
+document.getElementById('a-pin').addEventListener('keydown',function(e){if(e.key==='Enter')adminLogin();});
+document.getElementById('c-pin').addEventListener('keydown',function(e){if(e.key==='Enter')coachLogin();});
+document.getElementById('r-last').addEventListener('keydown',function(e){if(e.key==='Enter')repLogin();});
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js"></script>
+<script>
+window.addEventListener('load',function(){
+  if(window.jspdf&&window.jspdf.jsPDF)window.jsPDF=window.jspdf.jsPDF;
+  // Restore Microsoft session if present, then pull latest data from SharePoint
+  try{
+    if(msalReady()){
+      var accts=getMsal().getAllAccounts();
+      if(accts&&accts.length){msalAccount=accts[0];}
+    }
+  }catch(e){console.error(e);}
+  spPull(function(ok){
+    if(ok){
+      // refresh whatever view is open
+      if(role==='admin')renderAH();
+      if(role==='coach')renderCoachAll();
+      if(role==='rep')renderMyPay();
+      var wk=getLatestWeek();
+      var swEl=document.getElementById('sw');
+      if(wk&&swEl)swEl.textContent=fmtR(wk.weekStart,wk.weekEnd);
+    }
+    updateSyncBadge();
+  });
+});
+</script>
+</body>
+</html>
