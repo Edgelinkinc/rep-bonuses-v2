@@ -296,6 +296,7 @@ tbody td{padding:10px 12px;white-space:nowrap}
             <div class="ct" style="margin:0">Company Payout Summary</div>
             <div style="display:flex;gap:8px;flex-wrap:wrap">
               <button class="btn btn-s btn-sm" onclick="exportPayoutCSV()">&#11015; CSV</button>
+              <button class="btn btn-pu btn-sm" onclick="exportPayoutXLSX()">&#11015; EXCEL</button>
               <button class="btn btn-p btn-sm" onclick="exportPayoutPDF()">&#11015; PDF</button>
             </div>
           </div>
@@ -2269,23 +2270,252 @@ function renderCoachCB(){
 // ---- PAYOUT SUMMARY EXPORT ----
 function payoutRows(){
   var wk=getLatestWeek();if(!wk)return null;
-  var rows=[];
+  var r=getRules();var rows=[];
   for(var i=0;i<wk.reps.length;i++){
     var rep=wk.reps[i];var c=calcRep(rep);var cbd=cbForWeek(rep.ntid,wk.weekStart);
+    var voiceRate=c.voice.idx>=0?r.vt[c.voice.idx].pay:0;
     rows.push({name:rep.full_name,ntid:rep.ntid,coach:liveCoach(rep),store:liveStore(rep),
-      vtier:c.voice.tier,voice:c.voice.payout,mim:c.mim,acc:c.acc.payout,upg:c.upg,
-      bonus:c.weeklyBonus,arcade:c.arcade,cb:cbd.total,net:Math.max(0,c.weeklyBonus-cbd.total)});
+      // quantities
+      voiceActs:Math.max(0,rep.voice_acts||0),
+      mimLines:Math.max(0,rep.mim_acts||0),
+      totalLines:c.voice.lines,
+      upgrades:Math.max(0,rep.upgrade_count||0),
+      hsi:Math.max(0,rep.hsi_acts||0),
+      bts:Math.max(0,rep.bts_acts||0),
+      accProfit:rep.totaccessoryprofit||0,
+      // rates
+      voiceRate:voiceRate,mimRate:r.mpp,upgRate:r.upg,accPct:c.acc.pct,
+      hsiRate:r.arc.hsi,btsRate:r.arc.bts,
+      // tiers & retention
+      vtier:c.voice.tier,atier:c.acc.tier,
+      retention:(rep.retention===null||rep.retention===undefined)?'':rep.retention.toFixed(1),
+      decel:c.voice.decel?'YES':'',
+      // dollars
+      voice:c.voice.payout,mim:c.mim,acc:c.acc.payout,upg:c.upg,
+      bonus:c.weeklyBonus,arcadeHsi:c.arc.hsi,arcadeBts:c.arc.bts,arcade:c.arcade,
+      cb:cbd.total,net:Math.max(0,c.weeklyBonus-cbd.total)});
   }
   return{week:wk,rows:rows};
 }
 function exportPayoutCSV(){
   var d=payoutRows();if(!d){showToast('No week loaded.');return;}
-  var csv='Rep Name,NTID,Coach,Store,Voice Tier,Voice $,MIM $,Acc $,Upg $,Weekly Bonus,Arcade,CB Deduct,Net Bonus\n';
+  var csv='Week Start,Week End,Rep Name,NTID,Coach,Store,'+
+    'Voice Tier,New Voice Acts,MIM Lines,Total Tier Lines,Voice Rate,Voice $,'+
+    'MIM Rate,MIM $,'+
+    'Acc Tier,Acc Net Profit,Acc %,Acc $,'+
+    'Upgrades Qty,Upgrade Rate,Upgrade $,'+
+    'Weekly Bonus,'+
+    'HSI Qty,HSI Rate,HSI $,BTS Qty,BTS Rate,BTS $,Arcade Total (Paid Daily - Separate),'+
+    '95d Retention %,Decelerated,'+
+    'CB Deduct,NET WEEKLY PAYOUT (Paid Weekly)\n';
+  var tVA=0,tML=0,tTL=0,tV=0,tM=0,tAP=0,tA=0,tUQ=0,tU=0,tB=0,tHQ=0,tH=0,tBQ=0,tBT=0,tArc=0,tCB=0,tNet=0,tDec=0;
   for(var i=0;i<d.rows.length;i++){var r=d.rows[i];
-    csv+='"'+r.name+'","'+r.ntid+'","'+r.coach+'","'+r.store+'","'+r.vtier+'",'+r.voice.toFixed(2)+','+r.mim.toFixed(2)+','+r.acc.toFixed(2)+','+r.upg.toFixed(2)+','+r.bonus.toFixed(2)+','+r.arcade.toFixed(2)+','+r.cb.toFixed(2)+','+r.net.toFixed(2)+'\n';}
+    tVA+=r.voiceActs;tML+=r.mimLines;tTL+=r.totalLines;tV+=r.voice;tM+=r.mim;
+    tAP+=r.accProfit;tA+=r.acc;tUQ+=r.upgrades;tU+=r.upg;tB+=r.bonus;
+    tHQ+=r.hsi;tH+=r.arcadeHsi;tBQ+=r.bts;tBT+=r.arcadeBts;tArc+=r.arcade;
+    tCB+=r.cb;tNet+=r.net;if(r.decel==='YES')tDec++;
+    csv+='"'+d.week.weekStart+'","'+d.week.weekEnd+'","'+r.name+'","'+r.ntid+'","'+r.coach+'","'+r.store+'",'+
+      '"'+tierLabel(r.vtier)+'",'+r.voiceActs+','+r.mimLines+','+r.totalLines+','+r.voiceRate.toFixed(2)+','+r.voice.toFixed(2)+','+
+      r.mimRate.toFixed(2)+','+r.mim.toFixed(2)+','+
+      '"'+tierLabel(r.atier)+'",'+r.accProfit.toFixed(2)+','+r.accPct+','+r.acc.toFixed(2)+','+
+      r.upgrades+','+r.upgRate.toFixed(2)+','+r.upg.toFixed(2)+','+
+      r.bonus.toFixed(2)+','+
+      r.hsi+','+r.hsiRate.toFixed(2)+','+r.arcadeHsi.toFixed(2)+','+r.bts+','+r.btsRate.toFixed(2)+','+r.arcadeBts.toFixed(2)+','+r.arcade.toFixed(2)+','+
+      '"'+r.retention+'","'+r.decel+'",'+
+      r.cb.toFixed(2)+','+r.net.toFixed(2)+'\n';}
+  // TOTALS row
+  csv+='\n';
+  csv+='"","","TOTALS ('+d.rows.length+' reps)","","","",'+
+    '"",'+tVA+','+tML+','+tTL+',"",'+tV.toFixed(2)+','+
+    '"",'+tM.toFixed(2)+','+
+    '"",'+tAP.toFixed(2)+',"",'+tA.toFixed(2)+','+
+    tUQ+',"",'+tU.toFixed(2)+','+
+    tB.toFixed(2)+','+
+    tHQ+',"",'+tH.toFixed(2)+','+tBQ+',"",'+tBT.toFixed(2)+','+tArc.toFixed(2)+','+
+    '"","'+tDec+' decelerated",'+
+    tCB.toFixed(2)+','+tNet.toFixed(2)+'\n';
+  // Summary block
+  csv+='\n';
+  csv+='"SUMMARY"\n';
+  csv+='"Payout Week","'+d.week.weekStart+' to '+d.week.weekEnd+'"\n';
+  csv+='"Reps Paid",'+d.rows.length+'\n';
+  csv+='"Total Weekly Bonus (gross)",'+tB.toFixed(2)+'\n';
+  csv+='"Total Chargeback Deductions",'+tCB.toFixed(2)+'\n';
+  csv+='"TOTAL PAYOUT - PAID WEEKLY (net)",'+tNet.toFixed(2)+'\n';
+  csv+='"Total Arcade (paid separately)",'+tArc.toFixed(2)+'\n';
+  csv+='"Reps Decelerated",'+tDec+'\n';
   dlFile('Payout_Summary_'+d.week.weekStart+'.csv',csv,'text/csv');
   showToast('CSV downloaded.');
 }
+// ---- BRANDED XLSX EXPORT WITH CONDITIONAL FORMATTING ----
+function exportPayoutXLSX(){
+  if(typeof ExcelJS==='undefined'){showToast('Excel library still loading \u2014 try again in a moment.');return;}
+  var d=payoutRows();if(!d){showToast('No week loaded.');return;}
+  var MAG='FFE20074',PUR='FF4A1B5C',RED='FFFFCDD2',GRN='FFC8E6C9',YEL='FFFFF3CD',GRAY='FFF5F5F7';
+  var wb=new ExcelJS.Workbook();
+  wb.creator='EdgeLink Rep Bonus Dashboard';wb.created=new Date();
+  var ws=wb.addWorksheet('Payout Summary',{views:[{state:'frozen',xSplit:2,ySplit:2}]});
+
+  // Title row
+  ws.mergeCells('A1:AE1');
+  var t=ws.getCell('A1');
+  t.value='EDGELINK  \u2014  WEEKLY PAYOUT SUMMARY  \u2014  '+fmtR(d.week.weekStart,d.week.weekEnd);
+  t.font={name:'Calibri',size:14,bold:true,color:{argb:'FFFFFFFF'}};
+  t.fill={type:'pattern',pattern:'solid',fgColor:{argb:PUR}};
+  t.alignment={vertical:'middle',horizontal:'center'};
+  ws.getRow(1).height=26;
+
+  var cols=[
+    {h:'Rep Name',k:'name',w:24},{h:'NTID',k:'ntid',w:11},{h:'Coach',k:'coach',w:16},{h:'Store',k:'store',w:22},
+    {h:'Voice Tier',k:'vtierL',w:10},{h:'New Voice Acts',k:'voiceActs',w:14,n:true},{h:'MIM Lines',k:'mimLines',w:11,n:true},
+    {h:'Total Tier Lines',k:'totalLines',w:14,n:true},{h:'Voice Rate',k:'voiceRate',w:11,m:true},{h:'Voice $',k:'voice',w:11,m:true},
+    {h:'MIM Rate',k:'mimRate',w:10,m:true},{h:'MIM $',k:'mim',w:11,m:true},
+    {h:'Acc Tier',k:'atierL',w:10},{h:'Acc Net Profit',k:'accProfit',w:14,m:true},{h:'Acc %',k:'accPct',w:8,n:true},{h:'Acc $',k:'acc',w:11,m:true},
+    {h:'Upgrades Qty',k:'upgrades',w:13,n:true},{h:'Upgrade Rate',k:'upgRate',w:12,m:true},{h:'Upgrade $',k:'upg',w:11,m:true},
+    {h:'WEEKLY BONUS',k:'bonus',w:15,m:true},
+    {h:'HSI Qty',k:'hsi',w:9,n:true},{h:'HSI Rate',k:'hsiRate',w:10,m:true},{h:'HSI $',k:'arcadeHsi',w:10,m:true},
+    {h:'BTS Qty',k:'bts',w:9,n:true},{h:'BTS Rate',k:'btsRate',w:10,m:true},{h:'BTS $',k:'arcadeBts',w:10,m:true},
+    {h:'Arcade Total (Paid Daily)',k:'arcade',w:20,m:true},
+    {h:'95d Retention %',k:'retNum',w:14,n:true},{h:'Decelerated',k:'decel',w:12},
+    {h:'CB Deduct',k:'cb',w:12,m:true},
+    {h:'NET WEEKLY PAYOUT',k:'net',w:20,m:true}
+  ];
+  // Header row
+  var hdrRow=ws.getRow(2);
+  for(var ci=0;ci<cols.length;ci++){
+    var cell=hdrRow.getCell(ci+1);
+    cell.value=cols[ci].h;
+    cell.font={bold:true,size:10,color:{argb:'FFFFFFFF'}};
+    cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:MAG}};
+    cell.alignment={vertical:'middle',horizontal:'center',wrapText:true};
+    cell.border={bottom:{style:'thin',color:{argb:PUR}}};
+    ws.getColumn(ci+1).width=cols[ci].w;
+  }
+  hdrRow.height=30;
+
+  // Data rows
+  var totals={voiceActs:0,mimLines:0,totalLines:0,voice:0,mim:0,accProfit:0,acc:0,upgrades:0,upg:0,bonus:0,hsi:0,arcadeHsi:0,bts:0,arcadeBts:0,arcade:0,cb:0,net:0,decel:0};
+  for(var i=0;i<d.rows.length;i++){
+    var r=d.rows[i];
+    r.vtierL=tierLabel(r.vtier);r.atierL=tierLabel(r.atier);
+    r.retNum=r.retention===''?null:parseFloat(r.retention);
+    var row=ws.getRow(i+3);
+    for(var c2=0;c2<cols.length;c2++){
+      var cl=row.getCell(c2+1);var key=cols[c2].k;
+      cl.value=r[key];
+      if(cols[c2].m)cl.numFmt='$#,##0.00';
+      if(key==='retNum'&&r.retNum!==null)cl.numFmt='0.0"%"';
+      cl.alignment={horizontal:(cols[c2].n||cols[c2].m)?'right':'left'};
+      cl.font={size:10};
+      if(i%2===1)cl.fill={type:'pattern',pattern:'solid',fgColor:{argb:GRAY}};
+    }
+    // Conditional highlights (applied at build time)
+    if(r.decel==='YES'){
+      for(var dc=1;dc<=cols.length;dc++)row.getCell(dc).fill={type:'pattern',pattern:'solid',fgColor:{argb:RED}};
+      row.getCell(29).font={size:10,bold:true,color:{argb:'FFC62828'}};
+    }
+    if(r.vtier==='No Tier')row.getCell(5).font={size:10,bold:true,color:{argb:'FFC62828'}};
+    if(r.atier==='No Tier')row.getCell(13).font={size:10,bold:true,color:{argb:'FFC62828'}};
+    if(r.cb>0)row.getCell(30).font={size:10,bold:true,color:{argb:'FFC62828'}};
+    row.getCell(20).font={size:10,bold:true,color:{argb:'FF4A1B5C'}};
+    row.getCell(31).font={size:10,bold:true,color:{argb:'FF2E7D32'}};
+    // accumulate
+    totals.voiceActs+=r.voiceActs;totals.mimLines+=r.mimLines;totals.totalLines+=r.totalLines;
+    totals.voice+=r.voice;totals.mim+=r.mim;totals.accProfit+=r.accProfit;totals.acc+=r.acc;
+    totals.upgrades+=r.upgrades;totals.upg+=r.upg;totals.bonus+=r.bonus;
+    totals.hsi+=r.hsi;totals.arcadeHsi+=r.arcadeHsi;totals.bts+=r.bts;totals.arcadeBts+=r.arcadeBts;
+    totals.arcade+=r.arcade;totals.cb+=r.cb;totals.net+=r.net;
+    if(r.decel==='YES')totals.decel++;
+  }
+
+  // Totals row
+  var tr=ws.getRow(d.rows.length+3);
+  tr.getCell(1).value='TOTALS ('+d.rows.length+' reps)';
+  var tmap={6:'voiceActs',7:'mimLines',8:'totalLines',10:'voice',12:'mim',14:'accProfit',16:'acc',17:'upgrades',19:'upg',20:'bonus',21:'hsi',23:'arcadeHsi',24:'bts',26:'arcadeBts',27:'arcade',30:'cb',31:'net'};
+  for(var tk in tmap)tr.getCell(parseInt(tk)).value=totals[tmap[tk]];
+  tr.getCell(29).value=totals.decel+' decelerated';
+  for(var tc=1;tc<=cols.length;tc++){
+    var tcell=tr.getCell(tc);
+    tcell.font={bold:true,size:10,color:{argb:'FFFFFFFF'}};
+    tcell.fill={type:'pattern',pattern:'solid',fgColor:{argb:PUR}};
+    if(cols[tc-1]&&cols[tc-1].m)tcell.numFmt='$#,##0.00';
+    tcell.alignment={horizontal:(cols[tc-1]&&(cols[tc-1].n||cols[tc-1].m))?'right':'left'};
+  }
+  tr.height=20;
+  ws.autoFilter={from:{row:2,column:1},to:{row:2,column:cols.length}};
+
+  // ── LIVE conditional formatting rules (recalculate if user edits) ──
+  var lastRow=d.rows.length+2;
+  // Column letters: T=Weekly Bonus, AA=Arcade, AB=Retention, AC=Decelerated, AD=CB, AE=Net
+  try{
+    ws.addConditionalFormatting({
+      ref:'AC3:AC'+lastRow, // Decelerated = YES
+      rules:[{type:'cellIs',operator:'equal',formulae:['"YES"'],priority:1,
+        style:{font:{bold:true,color:{argb:'FFC62828'}},fill:{type:'pattern',pattern:'solid',bgColor:{argb:RED}}}}]
+    });
+    ws.addConditionalFormatting({
+      ref:'AB3:AB'+lastRow, // Retention below threshold
+      rules:[{type:'cellIs',operator:'lessThan',formulae:[String(getRules().drt)],priority:2,
+        style:{font:{bold:true,color:{argb:'FFC62828'}},fill:{type:'pattern',pattern:'solid',bgColor:{argb:RED}}}}]
+    });
+    ws.addConditionalFormatting({
+      ref:'AD3:AD'+lastRow, // CB Deduct > 0
+      rules:[{type:'cellIs',operator:'greaterThan',formulae:['0'],priority:3,
+        style:{font:{bold:true,color:{argb:'FFC62828'}}}}]
+    });
+    ws.addConditionalFormatting({
+      ref:'AE3:AE'+lastRow, // Net payout: green data bars
+      rules:[{type:'dataBar',priority:4,color:{argb:'FF34C759'}}]
+    });
+    ws.addConditionalFormatting({
+      ref:'T3:T'+lastRow, // Weekly bonus: white -> magenta scale
+      rules:[{type:'colorScale',priority:5,cfvo:[{type:'min'},{type:'max'}],color:[{argb:'FFFFFFFF'},{argb:'FFE20074'}]}]
+    });
+  }catch(cfErr){console.warn('conditional formatting skipped',cfErr);}
+
+  // ── SUMMARY SHEET ──
+  var s=wb.addWorksheet('Summary');
+  s.getColumn(1).width=36;s.getColumn(2).width=20;
+  s.mergeCells('A1:B1');
+  var st=s.getCell('A1');
+  st.value='EDGELINK \u2014 PAYOUT SUMMARY';
+  st.font={size:14,bold:true,color:{argb:'FFFFFFFF'}};
+  st.fill={type:'pattern',pattern:'solid',fgColor:{argb:PUR}};
+  st.alignment={horizontal:'center'};
+  s.getRow(1).height=24;
+  var srows=[
+    ['Payout Week',fmtR(d.week.weekStart,d.week.weekEnd)],
+    ['Reps Paid',d.rows.length],
+    ['Total Weekly Bonus (gross)',totals.bonus],
+    ['Total Chargeback Deductions',totals.cb],
+    ['TOTAL PAYOUT \u2014 PAID WEEKLY (net)',totals.net],
+    ['Total Arcade (paid daily, separate)',totals.arcade],
+    ['Reps Decelerated',totals.decel]
+  ];
+  for(var si=0;si<srows.length;si++){
+    var rr=s.getRow(si+3);
+    rr.getCell(1).value=srows[si][0];
+    rr.getCell(2).value=srows[si][1];
+    rr.getCell(1).font={size:11,bold:(si===4)};
+    rr.getCell(2).font={size:11,bold:(si===4)};
+    if(si>=2&&si<=5)rr.getCell(2).numFmt='$#,##0.00';
+    if(si===4){
+      rr.getCell(1).fill={type:'pattern',pattern:'solid',fgColor:{argb:GRN}};
+      rr.getCell(2).fill={type:'pattern',pattern:'solid',fgColor:{argb:GRN}};
+    }
+    if(si===3)rr.getCell(2).font={size:11,color:{argb:'FFC62828'}};
+  }
+
+  wb.xlsx.writeBuffer().then(function(buf){
+    var blob=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+    var a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download='Payout_Summary_'+d.week.weekStart+'.xlsx';
+    a.click();
+    showToast('Excel file downloaded.');
+  }).catch(function(e){console.error(e);showToast('Excel export failed: '+e.message);});
+}
+
 function exportPayoutPDF(){
   if(typeof window.jsPDF==='undefined'){showToast('PDF library loading, try again.');return;}
   var d=payoutRows();if(!d){showToast('No week loaded.');return;}
@@ -2415,6 +2645,7 @@ document.getElementById('r-last').addEventListener('keydown',function(e){if(e.ke
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.3/lib/msal-browser.min.js"></script>
 <script>
 // Fallback chain if jsDelivr is blocked: Microsoft primary CDN, then Microsoft alternate
