@@ -277,6 +277,10 @@ tbody td{padding:10px 12px;white-space:nowrap}
       </div>
 
       <div class="view" id="view-mypay">
+        <div class="fc" id="mp-wk-wrap" style="display:none">
+          <span style="font-size:13px;font-weight:700;color:var(--purple);align-self:center">Week:</span>
+          <select id="mp-wk" onchange="renderMyPay()"></select>
+        </div>
         <div id="db" class="db">&#9888;&#65039; 50% Decelerator Applied &mdash; Personal retention is below 57%</div>
         <div class="sg" id="mp-stats"></div>
         <div class="card"><div class="ct">Weekly Bonus Breakdown</div><div id="mp-break"></div></div>
@@ -1370,10 +1374,28 @@ function coachViewRep(ntid,weekStart){
 }
 
 function renderMyPay(){
-  var wk=getLatestWeek();var se=document.getElementById('mp-stats');var be=document.getElementById('mp-break');var me=document.getElementById('mp-month');
-  if(!wk){se.innerHTML='<p style="color:var(--gray);padding:20px">No data available.</p>';be.innerHTML='';me.innerHTML='';return;}
+  var se=document.getElementById('mp-stats');var be=document.getElementById('mp-break');var me=document.getElementById('mp-month');
+  var myNt=(curRep&&curRep.ntid||'').toLowerCase();
+  // All weeks where THIS rep has data, newest first
+  var myWeeks=getWeeks().filter(function(w){for(var i=0;i<w.reps.length;i++){if(w.reps[i].ntid.toLowerCase()===myNt)return true;}return false;});
+  myWeeks.sort(function(a,b){return new Date(b.weekStart)-new Date(a.weekStart);});
+  if(!myWeeks.length){se.innerHTML='<p style="color:var(--gray);padding:20px">No data found for your NTID.</p>';be.innerHTML='';me.innerHTML='';var ww=document.getElementById('mp-wk-wrap');if(ww)ww.style.display='none';return;}
+  // Build/refresh the week picker (only show it if more than one week exists)
+  var wkSel=document.getElementById('mp-wk');var wrap=document.getElementById('mp-wk-wrap');
+  var chosen=wkSel?wkSel.value:'';
+  if(wkSel){
+    var prev=chosen;wkSel.innerHTML='';
+    for(var p=0;p<myWeeks.length;p++){var o=document.createElement('option');o.value=myWeeks[p].weekStart;o.textContent=fmtR(myWeeks[p].weekStart,myWeeks[p].weekEnd)+(p===0?'  (latest)':'');wkSel.appendChild(o);}
+    // keep prior selection if still valid, else default to latest
+    var valid=false;for(var v=0;v<myWeeks.length;v++){if(myWeeks[v].weekStart===prev)valid=true;}
+    wkSel.value=valid?prev:myWeeks[0].weekStart;chosen=wkSel.value;
+  }
+  if(wrap)wrap.style.display=myWeeks.length>1?'flex':'none';
+  // Resolve the selected week (default latest)
+  var wk=null;for(var w=0;w<myWeeks.length;w++){if(myWeeks[w].weekStart===chosen){wk=myWeeks[w];break;}}
+  if(!wk)wk=myWeeks[0];
   var rd=null;
-  for(var i=0;i<wk.reps.length;i++){if(wk.reps[i].ntid.toLowerCase()===(curRep.ntid||'').toLowerCase()){rd=wk.reps[i];break;}}
+  for(var i=0;i<wk.reps.length;i++){if(wk.reps[i].ntid.toLowerCase()===myNt){rd=wk.reps[i];break;}}
   if(!rd){se.innerHTML='<p style="color:var(--gray);padding:20px">No data found for your NTID.</p>';be.innerHTML='';me.innerHTML='';return;}
   var c=calcRep(rd);
   document.getElementById('db').className='db'+(c.voice.decel?' show':'');
