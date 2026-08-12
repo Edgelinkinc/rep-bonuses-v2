@@ -237,6 +237,8 @@ tbody td{padding:10px 12px;white-space:nowrap}
       <div class="view" id="view-coach-pay">
         <div class="fc">
           <select id="co-filter" onchange="renderCoachAll()" style="font-weight:700"></select>
+          <select id="co-wk" onchange="renderCoachAll()"><option value="">Latest Week</option></select>
+          <span style="font-size:11px;color:var(--gray);align-self:center">Pick a rep to see every week &bull; tap a row to view the slip</span>
         </div>
         <div class="sg" id="cp-stats"></div>
         <div class="card">
@@ -1340,14 +1342,28 @@ function repBreakdownHTML(rd,wk){
 }
 
 // Coach: open a rep's full breakdown in a modal (same view the rep sees)
-function coachViewRep(ntid){
-  var wk=getLatestWeek();if(!wk){showToast('No data loaded.');return;}
-  var rd=null;for(var i=0;i<wk.reps.length;i++){if(wk.reps[i].ntid.toLowerCase()===ntid.toLowerCase()){rd=wk.reps[i];break;}}
-  if(!rd){showToast('No data for this rep.');return;}
+function coachViewRep(ntid,weekStart){
+  var wk=null;var wks=getWeeks();
+  if(weekStart){for(var i=0;i<wks.length;i++){if(wks[i].weekStart===weekStart){wk=wks[i];break;}}}
+  if(!wk)wk=getLatestWeek();
+  if(!wk){showToast('No data loaded.');return;}
+  var rd=null;for(var j=0;j<wk.reps.length;j++){if(wk.reps[j].ntid.toLowerCase()===ntid.toLowerCase()){rd=wk.reps[j];break;}}
+  if(!rd){showToast('No data for this rep this week.');return;}
+  // Build a week-picker so the coach can flip between this rep's weeks digitally.
+  var repWeeks=[];
+  for(var w=0;w<wks.length;w++){for(var r=0;r<wks[w].reps.length;r++){if(wks[w].reps[r].ntid.toLowerCase()===ntid.toLowerCase()){repWeeks.push(wks[w]);break;}}}
+  repWeeks.sort(function(a,b){return new Date(b.weekStart)-new Date(a.weekStart);});
+  var wkPicker='';
+  if(repWeeks.length>1){
+    wkPicker='<div style="margin-bottom:10px"><select onchange="coachViewRep(\''+esc(ntid)+'\',this.value)" style="padding:8px 12px;border:1.5px solid var(--gl);border-radius:8px;font-family:inherit;font-size:13px;font-weight:600">';
+    for(var p=0;p<repWeeks.length;p++){var sel=repWeeks[p].weekStart===wk.weekStart?' selected':'';wkPicker+='<option value="'+repWeeks[p].weekStart+'"'+sel+'>'+fmtR(repWeeks[p].weekStart,repWeeks[p].weekEnd)+'</option>';}
+    wkPicker+='</select></div>';
+  }
   var b=repBreakdownHTML(rd,wk);
-  document.getElementById('mo-rep-view-name').textContent=rd.full_name+'  \u2014  '+liveCoach(rd)+'  \u2022  '+(liveStore(rd)||'No store');
+  document.getElementById('mo-rep-view-name').textContent=rd.full_name+'  \u2014  '+fmtR(wk.weekStart,wk.weekEnd);
   document.getElementById('mo-rep-view-body').innerHTML=
-    b.decel+b.statsWrapped+
+    wkPicker+b.decel+b.statsWrapped+
+    '<div style="text-align:right;margin:8px 0"><button class="btn btn-p btn-sm" onclick="exportOneSlip(\''+esc(rd.ntid)+'\',\''+wk.weekStart+'\')">&#11015; Download This Slip (PDF)</button></div>'+
     '<div class="card" style="box-shadow:none;border:1px solid var(--gl);margin-bottom:12px"><div class="ct">Weekly Bonus Breakdown</div>'+b.breakdown+'</div>'+
     '<div class="card" style="box-shadow:none;border:1px solid var(--gl);margin-bottom:0"><div class="ct">Monthly Running Total</div>'+b.monthly+'</div>';
   om('mo-rep-view');
@@ -2300,35 +2316,72 @@ function coachTeamReps(coachFilter){
   for(var i=0;i<wk.reps.length;i++){var rep=wk.reps[i];if(coachFilter==='all'||liveCoach(rep)===coachFilter)out.push(rep);}
   return{week:wk,reps:out};
 }
+function fillCoachWk(){
+  var sel=document.getElementById('co-wk');if(!sel)return;
+  var cur=sel.value;var wks=getWeeks().slice().sort(function(a,b){return new Date(b.weekStart)-new Date(a.weekStart);});
+  sel.innerHTML='<option value="">Latest Week</option><option value="__all">All Weeks</option>';
+  for(var i=0;i<wks.length;i++){var o=document.createElement('option');o.value=wks[i].weekStart;o.textContent=fmtR(wks[i].weekStart,wks[i].weekEnd);sel.appendChild(o);}
+  sel.value=cur;
+}
 function renderCoachAll(){
+  fillCoachWk();
   var cf=document.getElementById('co-filter').value||'all';
-  var d=coachTeamReps(cf);
+  var wkSel=document.getElementById('co-wk')?document.getElementById('co-wk').value:'';
+  var repF=document.getElementById('co-rep-sel')?document.getElementById('co-rep-sel').value:'all';
   var se=document.getElementById('cp-stats');var be=document.getElementById('cp-body');
   var repSel=document.getElementById('co-rep-sel');
-  if(!d.week){se.innerHTML='<p style="color:var(--gray);padding:20px">No payout data loaded yet.</p>';be.innerHTML='';repSel.innerHTML='<option value="all">Whole Team</option>';return;}
-  var tB=0,tA=0,tC=0,tN=0;var rows='';
+  var allWeeks=getWeeks();
+  if(!allWeeks.length){se.innerHTML='<p style="color:var(--gray);padding:20px">No payout data loaded yet.</p>';be.innerHTML='';repSel.innerHTML='<option value="all">Whole Team</option>';return;}
+  // Rep dropdown = coach's team across all weeks
+  var seen={};var teamReps=[];
+  for(var w0=0;w0<allWeeks.length;w0++){for(var r0=0;r0<allWeeks[w0].reps.length;r0++){var rp0=allWeeks[w0].reps[r0];if(cf!=='all'&&liveCoach(rp0)!==cf)continue;var k0=rp0.ntid.toLowerCase();if(!seen[k0]){seen[k0]=1;teamReps.push({ntid:rp0.ntid,name:rp0.full_name});}}}
+  teamReps.sort(function(a,b){return a.name<b.name?-1:1;});
+  var curRep=repSel.value;
   repSel.innerHTML='<option value="all">Whole Team</option>';
-  var sorted=d.reps.slice().sort(function(a,b){return a.full_name<b.full_name?-1:1;});
-  for(var s=0;s<sorted.length;s++){var o=document.createElement('option');o.value=sorted[s].ntid;o.textContent=sorted[s].full_name;repSel.appendChild(o);}
-  for(var i=0;i<d.reps.length;i++){
-    var rep=d.reps[i];var c=calcRep(rep);var cbd=cbForWeek(rep.ntid,d.week.weekStart);
-    var net=Math.max(0,c.weeklyBonus-cbd.total);
-    tB+=c.weeklyBonus;tA+=c.arcade;tC+=cbd.total;tN+=net;
-    rows+='<tr style="cursor:pointer" onclick="coachViewRep(\''+esc(rep.ntid)+'\')" title="Click to view full breakdown"><td><strong style="color:var(--magenta)">'+esc(rep.full_name)+'</strong></td>'+
-      '<td style="font-size:11px;color:var(--gray)">'+esc(rep.ntid)+'</td>'+
-      '<td>'+esc(liveStore(rep)||'\u2014')+'</td><td>'+tb(c.voice.tier)+'</td>'+
-      '<td class="amt">'+fmt(c.voice.payout)+'</td><td class="amt">'+fmt(c.mim)+'</td>'+
-      '<td class="amt">'+fmt(c.acc.payout)+'</td><td class="amt">'+fmt(c.upg)+'</td>'+
-      '<td class="amt">'+fmt(c.weeklyBonus)+'</td>'+
-      '<td class="amt" style="color:var(--orange)">'+fmt(c.arcade)+'</td>'+
-      '<td class="amt rd">'+fmt(cbd.total)+'</td><td class="amt gr">'+fmt(net)+'</td></tr>';
+  for(var s=0;s<teamReps.length;s++){var o=document.createElement('option');o.value=teamReps[s].ntid;o.textContent=teamReps[s].name;repSel.appendChild(o);}
+  repSel.value=curRep||'all';repF=repSel.value;
+  // Which weeks in scope: rep picked with Latest -> all their weeks
+  var weeks;
+  if(wkSel==='__all'||(repF!=='all'&&wkSel==='')){weeks=allWeeks.slice();}
+  else if(wkSel===''){weeks=[getLatestWeek()];}
+  else{weeks=allWeeks.filter(function(w){return w.weekStart===wkSel;});}
+  weeks.sort(function(a,b){return new Date(b.weekStart)-new Date(a.weekStart);});
+  var multi=weeks.length>1;
+  var tB=0,tA=0,tC=0,tN=0,cnt=0;var rows='';
+  for(var wi=0;wi<weeks.length;wi++){var wk=weeks[wi];
+    var reps=wk.reps.slice().sort(function(a,b){return a.full_name<b.full_name?-1:1;});
+    for(var i=0;i<reps.length;i++){
+      var rep=reps[i];
+      if(cf!=='all'&&liveCoach(rep)!==cf)continue;
+      if(repF!=='all'&&rep.ntid.toLowerCase()!==repF.toLowerCase())continue;
+      var c=calcRep(rep);var cbd=cbForWeek(rep.ntid,wk.weekStart);var net=Math.max(0,c.weeklyBonus-cbd.total);
+      tB+=c.weeklyBonus;tA+=c.arcade;tC+=cbd.total;tN+=net;cnt++;
+      rows+='<tr style="cursor:pointer" onclick="coachViewRep(\''+esc(rep.ntid)+'\',\''+wk.weekStart+'\')" title="Tap to view slip">'+
+        (multi?'<td style="font-size:11px;color:var(--gray);white-space:nowrap">'+fmtR(wk.weekStart,wk.weekEnd)+'</td>':'')+
+        '<td><strong style="color:var(--magenta)">'+esc(rep.full_name)+'</strong></td>'+
+        '<td style="font-size:11px;color:var(--gray)">'+esc(rep.ntid)+'</td>'+
+        '<td>'+esc(liveStore(rep)||'\u2014')+'</td><td>'+tb(c.voice.tier)+'</td>'+
+        '<td class="amt">'+fmt(c.voice.payout)+'</td><td class="amt">'+fmt(c.mim)+'</td>'+
+        '<td class="amt">'+fmt(c.acc.payout)+'</td><td class="amt">'+fmt(c.upg)+'</td>'+
+        '<td class="amt">'+fmt(c.weeklyBonus)+'</td>'+
+        '<td class="amt" style="color:var(--orange)">'+fmt(c.arcade)+'</td>'+
+        '<td class="amt rd">'+fmt(cbd.total)+'</td><td class="amt gr">'+fmt(net)+'</td></tr>';
+    }
+  }
+  // Toggle the Week column header
+  var thead=be.parentNode.querySelector('thead tr');
+  if(thead){
+    var hasWeekTh=thead.firstChild&&thead.firstChild.textContent==='Week';
+    if(multi&&!hasWeekTh){var th=document.createElement('th');th.textContent='Week';thead.insertBefore(th,thead.firstChild);}
+    if(!multi&&hasWeekTh){thead.removeChild(thead.firstChild);}
   }
   se.innerHTML=
-    '<div class="sc pu"><div class="val">'+d.reps.length+'</div><div class="lbl">Team Reps</div></div>'+
+    '<div class="sc pu"><div class="val">'+cnt+'</div><div class="lbl">'+(multi?'Rep-Weeks':'Team Reps')+'</div></div>'+
     '<div class="sc mg"><div class="val">'+fmt(tB)+'</div><div class="lbl">Team Bonus</div></div>'+
     '<div class="sc or"><div class="val">'+fmt(tA)+'</div><div class="lbl">Arcade (Info)</div></div>'+
     '<div class="sc gr"><div class="val">'+fmt(tN)+'</div><div class="lbl">Net Payout</div></div>';
-  be.innerHTML=rows||'<tr><td colspan="12" style="text-align:center;color:var(--gray);padding:20px">No reps for this filter.</td></tr>';
+  var colspan=multi?13:12;
+  be.innerHTML=rows||'<tr><td colspan="'+colspan+'" style="text-align:center;color:var(--gray);padding:20px">No reps for this filter.</td></tr>';
 }
 function fillCoachTierWk(){
   var sel=document.getElementById('ct-wk');var wks=getWeeks();
