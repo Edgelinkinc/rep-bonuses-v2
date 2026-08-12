@@ -485,8 +485,10 @@ tbody td{padding:10px 12px;white-space:nowrap}
           <div class="ct">Export Bonus Slips (PDF)</div>
           <p style="font-size:13px;color:var(--gray);margin-bottom:16px">Downloads a true PDF per rep or all reps in a group.</p>
           <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;align-items:center">
-            <select id="ex-wk" style="padding:8px 12px;border:1.5px solid var(--gl);border-radius:8px;font-family:'Montserrat',sans-serif;font-size:13px"><option value="">Select week&hellip;</option></select>
-            <select id="ex-co" style="padding:8px 12px;border:1.5px solid var(--gl);border-radius:8px;font-family:'Montserrat',sans-serif;font-size:13px"><option value="all">All Coaches</option></select>
+            <select id="ex-wk" onchange="fillExportRep()" style="padding:8px 12px;border:1.5px solid var(--gl);border-radius:8px;font-family:'Montserrat',sans-serif;font-size:13px"><option value="">Select week&hellip;</option></select>
+            <select id="ex-mgr" onchange="onExMgr()" style="padding:8px 12px;border:1.5px solid var(--gl);border-radius:8px;font-family:'Montserrat',sans-serif;font-size:13px"><option value="all">All Managers</option></select>
+            <select id="ex-store" onchange="fillExportRep()" style="padding:8px 12px;border:1.5px solid var(--gl);border-radius:8px;font-family:'Montserrat',sans-serif;font-size:13px"><option value="all">All Stores</option></select>
+            <select id="ex-co" onchange="fillExportRep()" style="padding:8px 12px;border:1.5px solid var(--gl);border-radius:8px;font-family:'Montserrat',sans-serif;font-size:13px"><option value="all">All Coaches</option></select>
             <select id="ex-rep" style="padding:8px 12px;border:1.5px solid var(--gl);border-radius:8px;font-family:'Montserrat',sans-serif;font-size:13px"><option value="all">All Reps</option></select>
             <button class="btn btn-p" onclick="exportPDFs()">&#11015; ONE PDF</button>
             <button class="btn btn-pu" onclick="exportPDFsZip()">&#11015; ZIP (INDIVIDUAL PDFS)</button>
@@ -820,6 +822,8 @@ function getRosterRep(ntid){var r=getRoster();for(var i=0;i<r.length;i++){if(r[i
 // Live coach/store resolution: roster is source of truth, week snapshot is fallback
 function liveCoach(rep){var rr=getRosterRep(rep.ntid);return(rr&&rr.coach)?rr.coach:(rep.coach||'TBD');}
 function liveStore(rep){var rr=getRosterRep(rep.ntid);return(rr&&rr.store)?rr.store:(rep.home_store||'');}
+function storeManager(storeName){if(!storeName)return'';var ss=getStores();for(var i=0;i<ss.length;i++){if(ss[i].store===storeName)return ss[i].manager||'';}return'';}
+function liveManager(rep){return storeManager(liveStore(rep));}
 
 // ---- CALCULATIONS ----
 function voiceTier(va,mim){
@@ -1976,13 +1980,60 @@ function resetRules(){openConf('Reset all rules to default?',function(){sv(SK.ru
 
 <script>
 // ---- EXPORT PDF ----
-function renderExport(){fillExportWk();fillExportRep();}
+function renderExport(){fillExportWk();fillExportMgr();fillExportStore();fillExportCo();fillExportRep();}
+function fillExportMgr(){
+  var sel=document.getElementById('ex-mgr');if(!sel)return;var cur=sel.value;
+  var ss=getStores();var mgrs=[];var seen={};
+  for(var i=0;i<ss.length;i++){var m=ss[i].manager;if(m&&!seen[m]){seen[m]=1;mgrs.push(m);}}
+  mgrs.sort();
+  sel.innerHTML='<option value="all">All Managers</option>';
+  for(var j=0;j<mgrs.length;j++){var o=document.createElement('option');o.value=mgrs[j];o.textContent=mgrs[j];sel.appendChild(o);}
+  sel.value=cur||'all';
+}
+function fillExportStore(){
+  var sel=document.getElementById('ex-store');if(!sel)return;var cur=sel.value;
+  var mgrF=document.getElementById('ex-mgr')?document.getElementById('ex-mgr').value:'all';
+  var ss=getStores();var list=[];var seen={};
+  for(var i=0;i<ss.length;i++){
+    if(mgrF!=='all'&&ss[i].manager!==mgrF)continue;
+    var st=ss[i].store;if(st&&!seen[st]){seen[st]=1;list.push(st);}
+  }
+  list.sort();
+  sel.innerHTML='<option value="all">All Stores</option>';
+  for(var j=0;j<list.length;j++){var o=document.createElement('option');o.value=list[j];o.textContent=list[j];sel.appendChild(o);}
+  sel.value=cur||'all';
+}
+function fillExportCo(){
+  var sel=document.getElementById('ex-co');if(!sel)return;var cur=sel.value;
+  sel.innerHTML='<option value="all">All Coaches</option>';
+  var cs=getCoaches();for(var i=0;i<cs.length;i++){var o=document.createElement('option');o.value=cs[i];o.textContent=cs[i];sel.appendChild(o);}
+  sel.value=cur||'all';
+}
+function onExMgr(){fillExportStore();fillExportRep();}
 function fillExportWk(){var sel=document.getElementById('ex-wk');var wks=getWeeks().slice();sel.innerHTML='<option value="">Select week\u2026</option><option value="__all">All Weeks</option>';wks.sort(function(a,b){return new Date(b.weekStart)-new Date(a.weekStart);});for(var i=0;i<wks.length;i++){var o=document.createElement('option');o.value=wks[i].weekStart;o.textContent=fmtR(wks[i].weekStart,wks[i].weekEnd);sel.appendChild(o);}}
-function fillExportRep(){var sel=document.getElementById('ex-rep');if(!sel)return;var cur=sel.value;var wks=getWeeks();sel.innerHTML='<option value="all">All Reps</option>';var seen={};var reps=[];for(var w=0;w<wks.length;w++){for(var r=0;r<wks[w].reps.length;r++){var rp=wks[w].reps[r];var k=rp.ntid.toLowerCase();if(!seen[k]){seen[k]=1;reps.push({ntid:rp.ntid,name:rp.full_name});}}}reps.sort(function(a,b){return a.name<b.name?-1:1;});for(var i=0;i<reps.length;i++){var o=document.createElement('option');o.value=reps[i].ntid;o.textContent=reps[i].name;sel.appendChild(o);}sel.value=cur||'all';}
+function fillExportRep(){
+  var sel=document.getElementById('ex-rep');if(!sel)return;var cur=sel.value;
+  var mgrF=document.getElementById('ex-mgr')?document.getElementById('ex-mgr').value:'all';
+  var storeF=document.getElementById('ex-store')?document.getElementById('ex-store').value:'all';
+  var coF=document.getElementById('ex-co')?document.getElementById('ex-co').value:'all';
+  var wks=getWeeks();sel.innerHTML='<option value="all">All Reps</option>';var seen={};var reps=[];
+  for(var w=0;w<wks.length;w++){for(var r=0;r<wks[w].reps.length;r++){var rp=wks[w].reps[r];var k=rp.ntid.toLowerCase();
+    if(seen[k])continue;
+    if(mgrF!=='all'&&liveManager(rp)!==mgrF)continue;
+    if(storeF!=='all'&&liveStore(rp)!==storeF)continue;
+    if(coF!=='all'&&liveCoach(rp)!==coF)continue;
+    seen[k]=1;reps.push({ntid:rp.ntid,name:rp.full_name});
+  }}
+  reps.sort(function(a,b){return a.name<b.name?-1:1;});
+  for(var i=0;i<reps.length;i++){var o=document.createElement('option');o.value=reps[i].ntid;o.textContent=reps[i].name;sel.appendChild(o);}
+  sel.value=cur||'all';
+}
 // Collect (rep,week) pairs matching the export filters, across one or all weeks.
 function collectExportTargets(){
   var ws=document.getElementById('ex-wk').value;
   var cf=document.getElementById('ex-co').value,rf=document.getElementById('ex-rep').value;
+  var mgrF=document.getElementById('ex-mgr')?document.getElementById('ex-mgr').value:'all';
+  var storeF=document.getElementById('ex-store')?document.getElementById('ex-store').value:'all';
   var weeks=getWeeks();var scope;
   if(ws==='__all'||(rf!=='all'&&ws==='')){scope=weeks.slice();}
   else if(!ws){return{err:'Select a week (or choose All Weeks).'};}
@@ -1992,12 +2043,24 @@ function collectExportTargets(){
   for(var wi=0;wi<scope.length;wi++){var wk=scope[wi];
     var reps=wk.reps.slice().sort(function(a,b){var al=(a.full_name.split(' ').pop()||'').toLowerCase();var bl=(b.full_name.split(' ').pop()||'').toLowerCase();return al<bl?-1:al>bl?1:0;});
     for(var j=0;j<reps.length;j++){var rp=reps[j];
+      if(mgrF!=='all'&&liveManager(rp)!==mgrF)continue;
+      if(storeF!=='all'&&liveStore(rp)!==storeF)continue;
       if(cf!=='all'&&liveCoach(rp)!==cf)continue;
       if(rf!=='all'&&rp.ntid.toLowerCase()!==rf.toLowerCase())continue;
       targets.push({rep:rp,week:wk});
     }
   }
   return{targets:targets};
+}
+// Build a filename tag from the active group filter (manager/store/coach)
+function exportGroupTag(){
+  var mgrF=document.getElementById('ex-mgr')?document.getElementById('ex-mgr').value:'all';
+  var storeF=document.getElementById('ex-store')?document.getElementById('ex-store').value:'all';
+  var cf=document.getElementById('ex-co')?document.getElementById('ex-co').value:'all';
+  if(storeF!=='all')return storeF.replace(/[^A-Za-z0-9]+/g,'_');
+  if(mgrF!=='all')return 'Mgr_'+mgrF.replace(/[^A-Za-z0-9]+/g,'_');
+  if(cf!=='all')return cf.replace(/[^A-Za-z0-9]+/g,'_');
+  return 'All';
 }
 
 function tierLabel(t){
@@ -2188,7 +2251,7 @@ function exportPDFsZip(){
       var rf=document.getElementById('ex-rep').value;
       var grp;
       if(rf!=='all')grp=targets[0].rep.full_name.replace(/[^A-Za-z0-9]+/g,'_');
-      else grp=(cf==='all'?'All':cf.replace(/[^A-Za-z0-9]+/g,'_'));
+      else grp=exportGroupTag();
       var wkTag=(ws==='__all'||(rf!=='all'&&ws===''))?'AllWeeks':ws;
       zip.generateAsync({type:'blob'}).then(function(blob){
         var a=document.createElement('a');
