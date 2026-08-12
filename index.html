@@ -300,8 +300,14 @@ tbody td{padding:10px 12px;white-space:nowrap}
               <button class="btn btn-p btn-sm" onclick="exportPayoutPDF()">&#11015; PDF</button>
             </div>
           </div>
+          <div class="fc">
+            <select id="ah-wk" onchange="onAhFilter()"><option value="">Latest Week</option></select>
+            <select id="ah-co" onchange="renderAH()"><option value="all">All Coaches</option></select>
+            <select id="ah-rep" onchange="renderAH()"><option value="all">All Reps</option></select>
+            <span style="font-size:11px;color:var(--gray);align-self:center">Pick a rep to see every week &bull; tap a row for the full slip</span>
+          </div>
           <div class="tw"><table><thead><tr>
-            <th>Rep</th><th>NTID</th><th>Coach</th><th>Store</th>
+            <th>Week</th><th>Rep</th><th>NTID</th><th>Coach</th><th>Store</th>
             <th>V Tier</th><th>Voice $</th><th>MIM $</th><th>Acc $</th><th>Upg $</th>
             <th>Weekly Bonus</th><th>Arcade</th><th>CB</th><th>Net</th>
           </tr></thead><tbody id="ah-body"></tbody></table></div>
@@ -1180,36 +1186,105 @@ function mergeAndSave(pbi,emp,csv,ws,we,stEl,ret){
 }
 
 // ---- ADMIN HOME ----
+function fillAhFilters(){
+  var wkSel=document.getElementById('ah-wk');var coSel=document.getElementById('ah-co');var repSel=document.getElementById('ah-rep');
+  if(!wkSel)return;
+  var wks=getWeeks().slice().sort(function(a,b){return new Date(b.weekStart)-new Date(a.weekStart);});
+  var curW=wkSel.value;
+  wkSel.innerHTML='<option value="">Latest Week</option><option value="__all">All Weeks</option>';
+  for(var i=0;i<wks.length;i++){var o=document.createElement('option');o.value=wks[i].weekStart;o.textContent=fmtR(wks[i].weekStart,wks[i].weekEnd);wkSel.appendChild(o);}
+  wkSel.value=curW;
+  // Coaches
+  var curC=coSel.value;coSel.innerHTML='<option value="all">All Coaches</option>';
+  var cs=getCoaches();for(var ci=0;ci<cs.length;ci++){var oc=document.createElement('option');oc.value=cs[ci];oc.textContent=cs[ci];coSel.appendChild(oc);}
+  coSel.value=curC||'all';
+  // Reps: union of everyone across all weeks (so you can pick anyone, any week)
+  var curR=repSel.value;var seen={};var reps=[];
+  for(var w=0;w<wks.length;w++){for(var r=0;r<wks[w].reps.length;r++){var rp=wks[w].reps[r];var key=rp.ntid.toLowerCase();if(!seen[key]){seen[key]=1;reps.push({ntid:rp.ntid,name:rp.full_name});}}}
+  reps.sort(function(a,b){return a.name<b.name?-1:1;});
+  repSel.innerHTML='<option value="all">All Reps</option>';
+  for(var ri=0;ri<reps.length;ri++){var or=document.createElement('option');or.value=reps[ri].ntid;or.textContent=reps[ri].name;repSel.appendChild(or);}
+  repSel.value=curR||'all';
+}
+function onAhFilter(){renderAH();}
 function renderAH(){
-  var wk=getLatestWeek();var se=document.getElementById('ah-stats');var be=document.getElementById('ah-body');
-  if(!wk){se.innerHTML='<div class="card" style="grid-column:1/-1;text-align:center;color:var(--gray);padding:40px">No data loaded. Go to <strong>Upload Reports</strong>.</div>';be.innerHTML='';return;}
-  var reps=wk.reps;var tB=0,tA=0,tC=0;var rows='';
-  for(var i=0;i<reps.length;i++){
-    var rep=reps[i];var c=calcRep(rep);var cbd=cbForWeek(rep.ntid,wk.weekStart);
-    var net=Math.max(0,c.weeklyBonus-cbd.total);
-    tB+=c.weeklyBonus;tA+=c.arcade;tC+=cbd.total;
-    rows+='<tr><td><strong>'+esc(rep.full_name)+'</strong></td>'+
-      '<td style="font-size:11px;color:var(--gray)">'+esc(rep.ntid)+'</td>'+
-      '<td>'+esc(liveCoach(rep))+'</td><td>'+esc(liveStore(rep)||'\u2014')+'</td>'+
-      '<td>'+tb(c.voice.tier)+'</td>'+
-      '<td class="amt">'+fmt(c.voice.payout)+'</td><td class="amt">'+fmt(c.mim)+'</td>'+
-      '<td class="amt">'+fmt(c.acc.payout)+'</td><td class="amt">'+fmt(c.upg)+'</td>'+
-      '<td class="amt">'+fmt(c.weeklyBonus)+'</td>'+
-      '<td class="amt" style="color:var(--orange)">'+fmt(c.arcade)+'</td>'+
-      '<td class="amt rd">'+fmt(cbd.total)+'</td>'+
-      '<td class="amt gr">'+fmt(net)+'</td></tr>';
+  fillAhFilters();
+  var se=document.getElementById('ah-stats');var be=document.getElementById('ah-body');
+  var allWeeks=getWeeks();
+  if(!allWeeks.length){se.innerHTML='<div class="card" style="grid-column:1/-1;text-align:center;color:var(--gray);padding:40px">No data loaded. Go to <strong>Upload Reports</strong>.</div>';be.innerHTML='';return;}
+  var wkSel=document.getElementById('ah-wk').value;
+  var coF=document.getElementById('ah-co').value;
+  var repF=document.getElementById('ah-rep').value;
+  // Which weeks are in scope
+  var weeks;
+  if(wkSel==='__all'||(repF!=='all'&&wkSel==='')){weeks=allWeeks.slice();} // rep picked with Latest -> show all their weeks
+  else if(wkSel===''){weeks=[getLatestWeek()];}
+  else{weeks=allWeeks.filter(function(w){return w.weekStart===wkSel;});}
+  weeks.sort(function(a,b){return new Date(b.weekStart)-new Date(a.weekStart);});
+  var tB=0,tA=0,tC=0,tN=0,cnt=0;var rows='';
+  for(var wi=0;wi<weeks.length;wi++){var wk=weeks[wi];
+    var reps=wk.reps.slice().sort(function(a,b){var al=(a.full_name.split(' ').pop()||'').toLowerCase();var bl=(b.full_name.split(' ').pop()||'').toLowerCase();return al<bl?-1:al>bl?1:0;});
+    for(var i=0;i<reps.length;i++){
+      var rep=reps[i];
+      if(coF!=='all'&&liveCoach(rep)!==coF)continue;
+      if(repF!=='all'&&rep.ntid.toLowerCase()!==repF.toLowerCase())continue;
+      var c=calcRep(rep);var cbd=cbForWeek(rep.ntid,wk.weekStart);var net=Math.max(0,c.weeklyBonus-cbd.total);
+      tB+=c.weeklyBonus;tA+=c.arcade;tC+=cbd.total;tN+=net;cnt++;
+      rows+='<tr style="cursor:pointer" onclick="ahViewRep(\''+esc(rep.ntid)+'\',\''+wk.weekStart+'\')" title="View slip breakdown">'+
+        '<td style="font-size:11px;color:var(--gray);white-space:nowrap">'+fmtR(wk.weekStart,wk.weekEnd)+'</td>'+
+        '<td><strong style="color:var(--magenta)">'+esc(rep.full_name)+'</strong></td>'+
+        '<td style="font-size:11px;color:var(--gray)">'+esc(rep.ntid)+'</td>'+
+        '<td>'+esc(liveCoach(rep))+'</td><td>'+esc(liveStore(rep)||'\u2014')+'</td>'+
+        '<td>'+tb(c.voice.tier)+'</td>'+
+        '<td class="amt">'+fmt(c.voice.payout)+'</td><td class="amt">'+fmt(c.mim)+'</td>'+
+        '<td class="amt">'+fmt(c.acc.payout)+'</td><td class="amt">'+fmt(c.upg)+'</td>'+
+        '<td class="amt">'+fmt(c.weeklyBonus)+'</td>'+
+        '<td class="amt" style="color:var(--orange)">'+fmt(c.arcade)+'</td>'+
+        '<td class="amt rd">'+fmt(cbd.total)+'</td>'+
+        '<td class="amt gr">'+fmt(net)+'</td></tr>';
+    }
   }
+  var scopeLbl=(repF!=='all')?'Weeks Shown':(weeks.length>1?'Rep-Weeks':'Reps');
   se.innerHTML=
-    '<div class="sc pu"><div class="val">'+reps.length+'</div><div class="lbl">Reps</div></div>'+
+    '<div class="sc pu"><div class="val">'+cnt+'</div><div class="lbl">'+(weeks.length>1?'Rep-Weeks':'Reps')+'</div></div>'+
     '<div class="sc mg"><div class="val">'+fmt(tB)+'</div><div class="lbl">Weekly Bonus</div></div>'+
-    '<div class="sc or"><div class="val">'+fmt(tA)+'</div><div class="lbl">Arcade (Info)</div></div>'+
+    '<div class="sc gr"><div class="val">'+fmt(tN)+'</div><div class="lbl">Net Payout</div></div>'+
     '<div class="sc rd"><div class="val">'+fmt(tC)+'</div><div class="lbl">CB Deductions</div></div>';
   var roster2=getRoster();var rvw=0;
   for(var rv=0;rv<roster2.length;rv++){if(roster2[rv].needsReview)rvw++;}
   if(rvw>0){
     se.innerHTML+='<div style="grid-column:1/-1;background:#fff3cd;border:1px solid #ffc107;border-radius:10px;padding:12px 16px;font-size:13px;font-weight:600;color:#856404;cursor:pointer" onclick="navTo(\'roster\')">\u26A0\uFE0F <strong>'+rvw+' new rep(s)</strong> were auto-added from reports and need a coach/store. Tap here to assign them.</div>';
   }
-  be.innerHTML=rows;
+  be.innerHTML=rows||'<tr><td colspan="14" style="text-align:center;color:var(--gray);padding:20px">No reps match these filters.</td></tr>';
+}
+// Admin: click a dashboard row -> full breakdown modal for that rep+week
+function ahViewRep(ntid,weekStart){
+  var wk=null;var wks=getWeeks();for(var i=0;i<wks.length;i++){if(wks[i].weekStart===weekStart){wk=wks[i];break;}}
+  if(!wk){showToast('Week not found.');return;}
+  var rd=null;for(var r=0;r<wk.reps.length;r++){if(wk.reps[r].ntid.toLowerCase()===ntid.toLowerCase()){rd=wk.reps[r];break;}}
+  if(!rd){showToast('Rep not found in that week.');return;}
+  var b=repBreakdownHTML(rd,wk);
+  document.getElementById('mo-rep-view-name').textContent=rd.full_name+'  \u2014  '+fmtR(wk.weekStart,wk.weekEnd);
+  document.getElementById('mo-rep-view-body').innerHTML=
+    b.decel+b.statsWrapped+
+    '<div style="text-align:right;margin:8px 0"><button class="btn btn-p btn-sm" onclick="exportOneSlip(\''+esc(rd.ntid)+'\',\''+wk.weekStart+'\')">&#11015; Download This Slip (PDF)</button></div>'+
+    '<div class="card" style="box-shadow:none;border:1px solid var(--gl);margin-bottom:12px"><div class="ct">Weekly Bonus Breakdown</div>'+b.breakdown+'</div>'+
+    '<div class="card" style="box-shadow:none;border:1px solid var(--gl);margin-bottom:0"><div class="ct">Monthly Running Total</div>'+b.monthly+'</div>';
+  om('mo-rep-view');
+}
+// Download a single rep's slip for a single week
+function exportOneSlip(ntid,weekStart){
+  if(typeof window.jsPDF==='undefined'){showToast('PDF library loading, try again in a moment.');return;}
+  var wk=null;var wks=getWeeks();for(var i=0;i<wks.length;i++){if(wks[i].weekStart===weekStart){wk=wks[i];break;}}
+  if(!wk)return;
+  var rd=null;for(var r=0;r<wk.reps.length;r++){if(wk.reps[r].ntid.toLowerCase()===ntid.toLowerCase()){rd=wk.reps[r];break;}}
+  if(!rd)return;
+  try{
+    var doc=new window.jsPDF({unit:'pt',format:'letter'});
+    drawSlip(doc,rd,wk);
+    doc.save(slipFileName(rd,wk.weekStart));
+    showToast('Slip downloaded.');
+  }catch(err){console.error(err);showToast('PDF error: '+err.message);}
 }
 
 // ---- MY PAY ----
@@ -1822,8 +1897,28 @@ function resetRules(){openConf('Reset all rules to default?',function(){sv(SK.ru
 <script>
 // ---- EXPORT PDF ----
 function renderExport(){fillExportWk();fillExportRep();}
-function fillExportWk(){var sel=document.getElementById('ex-wk');var wks=getWeeks();sel.innerHTML='<option value="">Select week\u2026</option>';wks.sort(function(a,b){return new Date(b.weekStart)-new Date(a.weekStart);});for(var i=0;i<wks.length;i++){var o=document.createElement('option');o.value=wks[i].weekStart;o.textContent=fmtR(wks[i].weekStart,wks[i].weekEnd);sel.appendChild(o);}}
-function fillExportRep(){var sel=document.getElementById('ex-rep');if(!sel)return;var wk=getLatestWeek();sel.innerHTML='<option value="all">All Reps</option>';if(!wk)return;var sorted=wk.reps.slice().sort(function(a,b){return a.full_name<b.full_name?-1:1;});for(var i=0;i<sorted.length;i++){var o=document.createElement('option');o.value=sorted[i].ntid;o.textContent=sorted[i].full_name;sel.appendChild(o);}}
+function fillExportWk(){var sel=document.getElementById('ex-wk');var wks=getWeeks().slice();sel.innerHTML='<option value="">Select week\u2026</option><option value="__all">All Weeks</option>';wks.sort(function(a,b){return new Date(b.weekStart)-new Date(a.weekStart);});for(var i=0;i<wks.length;i++){var o=document.createElement('option');o.value=wks[i].weekStart;o.textContent=fmtR(wks[i].weekStart,wks[i].weekEnd);sel.appendChild(o);}}
+function fillExportRep(){var sel=document.getElementById('ex-rep');if(!sel)return;var cur=sel.value;var wks=getWeeks();sel.innerHTML='<option value="all">All Reps</option>';var seen={};var reps=[];for(var w=0;w<wks.length;w++){for(var r=0;r<wks[w].reps.length;r++){var rp=wks[w].reps[r];var k=rp.ntid.toLowerCase();if(!seen[k]){seen[k]=1;reps.push({ntid:rp.ntid,name:rp.full_name});}}}reps.sort(function(a,b){return a.name<b.name?-1:1;});for(var i=0;i<reps.length;i++){var o=document.createElement('option');o.value=reps[i].ntid;o.textContent=reps[i].name;sel.appendChild(o);}sel.value=cur||'all';}
+// Collect (rep,week) pairs matching the export filters, across one or all weeks.
+function collectExportTargets(){
+  var ws=document.getElementById('ex-wk').value;
+  var cf=document.getElementById('ex-co').value,rf=document.getElementById('ex-rep').value;
+  var weeks=getWeeks();var scope;
+  if(ws==='__all'||(rf!=='all'&&ws==='')){scope=weeks.slice();}
+  else if(!ws){return{err:'Select a week (or choose All Weeks).'};}
+  else{scope=weeks.filter(function(w){return w.weekStart===ws;});}
+  scope.sort(function(a,b){return new Date(b.weekStart)-new Date(a.weekStart);});
+  var targets=[];
+  for(var wi=0;wi<scope.length;wi++){var wk=scope[wi];
+    var reps=wk.reps.slice().sort(function(a,b){var al=(a.full_name.split(' ').pop()||'').toLowerCase();var bl=(b.full_name.split(' ').pop()||'').toLowerCase();return al<bl?-1:al>bl?1:0;});
+    for(var j=0;j<reps.length;j++){var rp=reps[j];
+      if(cf!=='all'&&liveCoach(rp)!==cf)continue;
+      if(rf!=='all'&&rp.ntid.toLowerCase()!==rf.toLowerCase())continue;
+      targets.push({rep:rp,week:wk});
+    }
+  }
+  return{targets:targets};
+}
 
 function tierLabel(t){
   if(t==='No Tier')return'No Tier';
@@ -1950,26 +2045,27 @@ function slipFileName(rep,ws){return'BonusSlip_'+rep.full_name.replace(/[^A-Za-z
 
 // Admin export: one multi-page PDF (unchanged behavior)
 function exportPDFs(){
-  if(typeof window.jsPDF==='undefined'){document.getElementById('ex-status').textContent='\u23F3 PDF library loading, try again in a moment\u2026';return;}
-  var ws=document.getElementById('ex-wk').value;
-  var cf=document.getElementById('ex-co').value,rf=document.getElementById('ex-rep').value;
   var stEl=document.getElementById('ex-status');
-  if(!ws){showToast('Select a week.');return;}
-  var weeks=getWeeks();var week=null;for(var i=0;i<weeks.length;i++){if(weeks[i].weekStart===ws){week=weeks[i];break;}}
-  if(!week){showToast('Week not found.');return;}
-  var reps=[];
-  for(var j=0;j<week.reps.length;j++){var rp=week.reps[j];if((cf==='all'||liveCoach(rp)===cf)&&(rf==='all'||rp.ntid===rf))reps.push(rp);}
-  if(!reps.length){showToast('No reps match filters.');return;}
-  stEl.textContent='\u23F3 Generating '+reps.length+' slip(s)\u2026';
+  if(typeof window.jsPDF==='undefined'){stEl.textContent='\u23F3 PDF library loading, try again in a moment\u2026';return;}
+  var res=collectExportTargets();
+  if(res.err){showToast(res.err);return;}
+  var targets=res.targets;
+  if(!targets.length){showToast('No reps match filters.');return;}
+  stEl.textContent='\u23F3 Generating '+targets.length+' slip(s)\u2026';
   setTimeout(function(){
     try{
       var doc=new window.jsPDF({unit:'pt',format:'letter'});
-      for(var ri=0;ri<reps.length;ri++){
+      for(var ri=0;ri<targets.length;ri++){
         if(ri>0)doc.addPage();
-        drawSlip(doc,reps[ri],week);
+        drawSlip(doc,targets[ri].rep,targets[ri].week);
       }
-      var fn=reps.length===1?slipFileName(reps[0],ws):'BonusSlips_'+ws+'.pdf';
-      doc.save(fn);stEl.textContent='\u2705 Downloaded '+reps.length+' slip(s).';
+      var ws=document.getElementById('ex-wk').value;
+      var rf=document.getElementById('ex-rep').value;
+      var fn;
+      if(targets.length===1)fn=slipFileName(targets[0].rep,targets[0].week.weekStart);
+      else if(rf!=='all')fn='BonusSlips_'+targets[0].rep.full_name.replace(/[^a-z0-9]/gi,'_')+'_AllWeeks.pdf';
+      else fn='BonusSlips_'+(ws==='__all'?'AllWeeks':ws)+'.pdf';
+      doc.save(fn);stEl.textContent='\u2705 Downloaded '+targets.length+' slip(s).';
     }catch(err){console.error(err);stEl.textContent='\u274C PDF error: '+err.message;}
   },100);
 }
@@ -1979,43 +2075,47 @@ function exportPDFsZip(){
   var stEl=document.getElementById('ex-status');
   if(typeof window.jsPDF==='undefined'){stEl.textContent='\u23F3 PDF library loading, try again in a moment\u2026';return;}
   if(typeof JSZip==='undefined'){stEl.textContent='\u23F3 ZIP library loading, try again in a moment\u2026';return;}
-  var ws=document.getElementById('ex-wk').value;
-  var cf=document.getElementById('ex-co').value,rf=document.getElementById('ex-rep').value;
-  if(!ws){showToast('Select a week.');return;}
-  var weeks=getWeeks();var week=null;for(var i=0;i<weeks.length;i++){if(weeks[i].weekStart===ws){week=weeks[i];break;}}
-  if(!week){showToast('Week not found.');return;}
-  var reps=[];
-  for(var j=0;j<week.reps.length;j++){var rp=week.reps[j];if((cf==='all'||liveCoach(rp)===cf)&&(rf==='all'||rp.ntid===rf))reps.push(rp);}
-  if(!reps.length){showToast('No reps match filters.');return;}
-  if(reps.length===1){
-    // Single rep — no point zipping
+  var res=collectExportTargets();
+  if(res.err){showToast(res.err);return;}
+  var targets=res.targets;
+  if(!targets.length){showToast('No reps match filters.');return;}
+  if(targets.length===1){
     stEl.textContent='\u23F3 Generating slip\u2026';
     setTimeout(function(){
       try{
         var doc=new window.jsPDF({unit:'pt',format:'letter'});
-        drawSlip(doc,reps[0],week);
-        doc.save(slipFileName(reps[0],ws));
+        drawSlip(doc,targets[0].rep,targets[0].week);
+        doc.save(slipFileName(targets[0].rep,targets[0].week.weekStart));
         stEl.textContent='\u2705 Downloaded 1 slip.';
       }catch(err){console.error(err);stEl.textContent='\u274C PDF error: '+err.message;}
     },100);
     return;
   }
-  stEl.textContent='\u23F3 Generating '+reps.length+' individual slips\u2026';
+  stEl.textContent='\u23F3 Generating '+targets.length+' individual slips\u2026';
   setTimeout(function(){
     try{
-      var zip=new JSZip();
-      for(var ri=0;ri<reps.length;ri++){
+      var zip=new JSZip();var nameCount={};
+      for(var ri=0;ri<targets.length;ri++){
         var doc=new window.jsPDF({unit:'pt',format:'letter'});
-        drawSlip(doc,reps[ri],week);
-        zip.file(slipFileName(reps[ri],ws),doc.output('blob'));
+        drawSlip(doc,targets[ri].rep,targets[ri].week);
+        // Include week in filename so multi-week exports don't collide
+        var fn=slipFileName(targets[ri].rep,targets[ri].week.weekStart);
+        if(nameCount[fn]){nameCount[fn]++;fn=fn.replace(/\.pdf$/,'_'+nameCount[fn]+'.pdf');}else{nameCount[fn]=1;}
+        zip.file(fn,doc.output('blob'));
       }
-      var grp=(cf==='all'?'All':cf.replace(/[^A-Za-z0-9]+/g,'_'));
+      var ws=document.getElementById('ex-wk').value;
+      var cf=document.getElementById('ex-co').value;
+      var rf=document.getElementById('ex-rep').value;
+      var grp;
+      if(rf!=='all')grp=targets[0].rep.full_name.replace(/[^A-Za-z0-9]+/g,'_');
+      else grp=(cf==='all'?'All':cf.replace(/[^A-Za-z0-9]+/g,'_'));
+      var wkTag=(ws==='__all'||(rf!=='all'&&ws===''))?'AllWeeks':ws;
       zip.generateAsync({type:'blob'}).then(function(blob){
         var a=document.createElement('a');
         a.href=URL.createObjectURL(blob);
-        a.download='BonusSlips_'+grp+'_'+ws+'.zip';
+        a.download='BonusSlips_'+grp+'_'+wkTag+'.zip';
         a.click();
-        stEl.textContent='\u2705 Downloaded ZIP with '+reps.length+' individual slips.';
+        stEl.textContent='\u2705 Downloaded ZIP with '+targets.length+' individual slips.';
       });
     }catch(err){console.error(err);stEl.textContent='\u274C ZIP error: '+err.message;}
   },100);
@@ -2447,31 +2547,22 @@ function exportPayoutXLSX(){
   // ── LIVE conditional formatting rules (recalculate if user edits) ──
   var lastRow=d.rows.length+2;
   // Column letters: T=Weekly Bonus, AA=Arcade, AB=Retention, AC=Decelerated, AD=CB, AE=Net
-  try{
-    ws.addConditionalFormatting({
-      ref:'AC3:AC'+lastRow, // Decelerated = YES
-      rules:[{type:'cellIs',operator:'equal',formulae:['"YES"'],priority:1,
-        style:{font:{bold:true,color:{argb:'FFC62828'}},fill:{type:'pattern',pattern:'solid',bgColor:{argb:RED}}}}]
-    });
-    ws.addConditionalFormatting({
-      ref:'AB3:AB'+lastRow, // Retention below threshold
-      rules:[{type:'cellIs',operator:'lessThan',formulae:[String(getRules().drt)],priority:2,
-        style:{font:{bold:true,color:{argb:'FFC62828'}},fill:{type:'pattern',pattern:'solid',bgColor:{argb:RED}}}}]
-    });
-    ws.addConditionalFormatting({
-      ref:'AD3:AD'+lastRow, // CB Deduct > 0
-      rules:[{type:'cellIs',operator:'greaterThan',formulae:['0'],priority:3,
-        style:{font:{bold:true,color:{argb:'FFC62828'}}}}]
-    });
-    ws.addConditionalFormatting({
-      ref:'AE3:AE'+lastRow, // Net payout: green data bars
-      rules:[{type:'dataBar',priority:4,color:{argb:'FF34C759'}}]
-    });
-    ws.addConditionalFormatting({
-      ref:'T3:T'+lastRow, // Weekly bonus: white -> magenta scale
-      rules:[{type:'colorScale',priority:5,cfvo:[{type:'min'},{type:'max'}],color:[{argb:'FFFFFFFF'},{argb:'FFE20074'}]}]
-    });
-  }catch(cfErr){console.warn('conditional formatting skipped',cfErr);}
+  // Each rule added independently so one unsupported rule can't abort the export.
+  function addCF(ref,rules){
+    try{ws.addConditionalFormatting({ref:ref,rules:rules});}
+    catch(e){console.warn('CF skipped for '+ref,e);}
+  }
+  addCF('AC3:AC'+lastRow,[{type:'cellIs',operator:'equal',formulae:['"YES"'],priority:1,
+    style:{font:{bold:true,color:{argb:'FFC62828'}},fill:{type:'pattern',pattern:'solid',bgColor:{argb:RED}}}}]);
+  addCF('AB3:AB'+lastRow,[{type:'cellIs',operator:'lessThan',formulae:[String(getRules().drt)],priority:2,
+    style:{font:{bold:true,color:{argb:'FFC62828'}},fill:{type:'pattern',pattern:'solid',bgColor:{argb:RED}}}}]);
+  addCF('AD3:AD'+lastRow,[{type:'cellIs',operator:'greaterThan',formulae:['0'],priority:3,
+    style:{font:{bold:true,color:{argb:'FFC62828'}}}}]);
+  // dataBar REQUIRES cfvo, otherwise ExcelJS throws on rules.cfvo.forEach
+  addCF('AE3:AE'+lastRow,[{type:'dataBar',priority:4,
+    cfvo:[{type:'min'},{type:'max'}],color:{argb:'FF34C759'}}]);
+  addCF('T3:T'+lastRow,[{type:'colorScale',priority:5,
+    cfvo:[{type:'min'},{type:'max'}],color:[{argb:'FFFFFFFF'},{argb:'FFE20074'}]}]);
 
   // ── SUMMARY SHEET ──
   var s=wb.addWorksheet('Summary');
@@ -2506,6 +2597,7 @@ function exportPayoutXLSX(){
     if(si===3)rr.getCell(2).font={size:11,color:{argb:'FFC62828'}};
   }
 
+  showToast('Building Excel file\u2026');
   wb.xlsx.writeBuffer().then(function(buf){
     var blob=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
     var a=document.createElement('a');
