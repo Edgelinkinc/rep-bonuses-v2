@@ -1410,15 +1410,57 @@ function renderMyPay(){
 
 // ---- MY TIER / MY CB ----
 function renderMyTier(){
-  var el=document.getElementById('mt-content');var weeks=getWeeks();
-  if(!weeks.length){el.innerHTML='<p style="color:var(--gray);padding:20px">No data.</p>';return;}
-  weeks.sort(function(a,b){return new Date(a.weekStart)-new Date(b.weekStart);});var rows='';
-  for(var w=0;w<weeks.length;w++){var wk=weeks[w];for(var r=0;r<wk.reps.length;r++){
-    if(wk.reps[r].ntid.toLowerCase()!==(curRep.ntid||'').toLowerCase())continue;
-    var c=calcRep(wk.reps[r]);
-    rows+='<tr><td>'+fmtR(wk.weekStart,wk.weekEnd)+'</td><td>'+tb(c.voice.tier)+'</td><td>'+c.voice.lines+'</td><td>'+tb(c.acc.tier)+'</td><td>'+fmt(wk.reps[r].totaccessoryprofit)+'</td></tr>';
-  }}
-  el.innerHTML='<div class="tw"><table><thead><tr><th>Week</th><th>Voice Tier</th><th>Lines</th><th>Acc Tier</th><th>Acc Profit</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
+  var el=document.getElementById('mt-content');var weeks=getWeeks();var r=getRules();
+  var myNt=(curRep&&curRep.ntid||'').toLowerCase();
+  var mine=weeks.filter(function(w){for(var i=0;i<w.reps.length;i++){if(w.reps[i].ntid.toLowerCase()===myNt)return true;}return false;});
+  if(!mine.length){el.innerHTML='<p style="color:var(--gray);padding:20px">No tier data yet.</p>';return;}
+  mine.sort(function(a,b){return new Date(b.weekStart)-new Date(a.weekStart);});
+
+  // ── Current-week hero card ──
+  var latest=mine[0];var rd=null;
+  for(var i=0;i<latest.reps.length;i++){if(latest.reps[i].ntid.toLowerCase()===myNt){rd=latest.reps[i];break;}}
+  var c=calcRep(rd);
+  var voiceRate=c.voice.idx>=0?r.vt[c.voice.idx].pay:0;
+  // Lines to next voice tier
+  var nextV=null;for(var vi=0;vi<r.vt.length;vi++){if(r.vt[vi].min>c.voice.lines){nextV=r.vt[vi];break;}}
+  var toNextV=nextV?(nextV.min-c.voice.lines):0;
+  // Accessory tier context
+  var accProfit=rd.totaccessoryprofit||0;
+  var nextA=null;for(var ai=0;ai<r.at.length;ai++){if(r.at[ai].min>accProfit){nextA=r.at[ai];break;}}
+  var toNextA=nextA?(nextA.min-accProfit):0;
+  var accMax=r.at[r.at.length-1].min;var accPct=accMax>0?Math.min(100,(accProfit/accMax)*100):0;
+  var tmax=r.vt[r.vt.length-1].min+10;var vpct=Math.min(100,(c.voice.lines/tmax)*100);
+
+  var hero='<div style="background:linear-gradient(135deg,#faf5ff,#fff);border:1px solid var(--gl);border-radius:12px;padding:16px;margin-bottom:16px">'+
+    '<div style="font-size:12px;font-weight:700;text-transform:uppercase;color:var(--gray);margin-bottom:10px">This Week \u2014 '+fmtR(latest.weekStart,latest.weekEnd)+'</div>'+
+    // Voice
+    '<div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">'+
+    '<span style="font-size:13px;font-weight:600">Voice Tier: '+tierLabel(c.voice.tier)+' ('+c.voice.lines+' lines '+(voiceRate>0?'\u2014 $'+voiceRate+'/voice':'')+')</span>'+tb(c.voice.tier)+'</div>'+
+    '<div class="tbw"><div class="tb" style="width:'+vpct+'%"></div></div>'+
+    (nextV?'<div style="font-size:11px;color:var(--gray);margin-top:4px">'+toNextV+' more line'+(toNextV===1?'':'s')+' to reach '+tierLabel('T'+ (c.voice.idx+2))+' ($'+nextV.pay+'/voice)</div>':(c.voice.tier!=='No Tier'?'<div style="font-size:11px;color:var(--green);margin-top:4px">\u2705 Top voice tier reached</div>':'<div style="font-size:11px;color:var(--gray);margin-top:4px">'+(r.vt[0].min-c.voice.lines)+' lines to reach the first tier</div>'))+'</div>'+
+    // Accessory
+    '<div style="margin-bottom:6px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">'+
+    '<span style="font-size:13px;font-weight:600">Accessory Tier: '+tierLabel(c.acc.tier)+' ('+fmt(accProfit)+' net'+(c.acc.pct>0?' \u2014 '+c.acc.pct+'%':'')+')</span>'+tb(c.acc.tier)+'</div>'+
+    '<div class="tbw"><div class="tb" style="width:'+accPct+'%"></div></div>'+
+    (nextA?'<div style="font-size:11px;color:var(--gray);margin-top:4px">'+fmt(toNextA)+' more net profit to reach '+nextA.pct+'%</div>':'<div style="font-size:11px;color:var(--green);margin-top:4px">\u2705 Top accessory tier reached</div>')+'</div>'+
+    (rd.retention!==null&&rd.retention!==undefined?'<div style="font-size:12px;margin-top:10px;padding-top:10px;border-top:1px solid var(--gl)"><strong>95-day retention:</strong> '+rd.retention.toFixed(1)+'% '+(c.voice.decel?'<span style="color:var(--red);font-weight:700">\u2014 below '+r.drt+'%, 50% decelerator applied to voice pay</span>':'<span style="color:var(--green)">\u2014 above '+r.drt+'%, no decelerator</span>'):'')+'</div>';
+
+  // ── History table (enriched) ──
+  var rows='';
+  for(var w=0;w<mine.length;w++){var wk=mine[w];var wr=null;
+    for(var q=0;q<wk.reps.length;q++){if(wk.reps[q].ntid.toLowerCase()===myNt){wr=wk.reps[q];break;}}
+    var wc=calcRep(wr);var wRate=wc.voice.idx>=0?r.vt[wc.voice.idx].pay:0;
+    rows+='<tr><td style="white-space:nowrap">'+fmtR(wk.weekStart,wk.weekEnd)+'</td>'+
+      '<td>'+tb(wc.voice.tier)+'</td><td class="amt">'+wc.voice.lines+'</td>'+
+      '<td class="amt">'+(wRate>0?'$'+wRate:'\u2014')+'</td>'+
+      '<td>'+tb(wc.acc.tier)+'</td><td class="amt">'+fmt(wr.totaccessoryprofit)+'</td>'+
+      '<td class="amt">'+(wc.acc.pct>0?wc.acc.pct+'%':'\u2014')+'</td>'+
+      '<td class="amt">'+((wr.retention!==null&&wr.retention!==undefined)?wr.retention.toFixed(1)+'%':'\u2014')+'</td>'+
+      '<td class="amt gr">'+fmt(wc.weeklyBonus)+'</td></tr>';
+  }
+  el.innerHTML=hero+
+    '<div style="font-size:12px;font-weight:700;text-transform:uppercase;color:var(--purple);margin:4px 0 8px">Week-by-Week History</div>'+
+    '<div class="tw"><table><thead><tr><th>Week</th><th>Voice Tier</th><th>Lines</th><th>Rate</th><th>Acc Tier</th><th>Acc Profit</th><th>Acc %</th><th>95d Ret</th><th>Weekly Bonus</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
 }
 function renderMyCB(){
   var el=document.getElementById('mcb-content');var cbs=getCBs();var ntid=(curRep.ntid||'').toLowerCase();
