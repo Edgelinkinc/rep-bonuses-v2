@@ -488,7 +488,7 @@ tbody td{padding:10px 12px;white-space:nowrap}
             <select id="ex-wk" onchange="fillExportRep()" style="padding:8px 12px;border:1.5px solid var(--gl);border-radius:8px;font-family:'Montserrat',sans-serif;font-size:13px"><option value="">Select week&hellip;</option></select>
             <select id="ex-mgr" onchange="onExMgr()" style="padding:8px 12px;border:1.5px solid var(--gl);border-radius:8px;font-family:'Montserrat',sans-serif;font-size:13px"><option value="all">All Managers</option></select>
             <select id="ex-store" onchange="fillExportRep()" style="padding:8px 12px;border:1.5px solid var(--gl);border-radius:8px;font-family:'Montserrat',sans-serif;font-size:13px"><option value="all">All Stores</option></select>
-            <select id="ex-co" onchange="fillExportRep()" style="padding:8px 12px;border:1.5px solid var(--gl);border-radius:8px;font-family:'Montserrat',sans-serif;font-size:13px"><option value="all">All Coaches</option></select>
+            <select id="ex-co" onchange="onExCoStore()" style="padding:8px 12px;border:1.5px solid var(--gl);border-radius:8px;font-family:'Montserrat',sans-serif;font-size:13px"><option value="all">All Coaches</option></select>
             <select id="ex-rep" style="padding:8px 12px;border:1.5px solid var(--gl);border-radius:8px;font-family:'Montserrat',sans-serif;font-size:13px"><option value="all">All Reps</option></select>
             <button class="btn btn-p" onclick="exportPDFs()">&#11015; ONE PDF</button>
             <button class="btn btn-pu" onclick="exportPDFsZip()">&#11015; ZIP (INDIVIDUAL PDFS)</button>
@@ -1993,15 +1993,19 @@ function fillExportMgr(){
 function fillExportStore(){
   var sel=document.getElementById('ex-store');if(!sel)return;var cur=sel.value;
   var mgrF=document.getElementById('ex-mgr')?document.getElementById('ex-mgr').value:'all';
+  var coF=document.getElementById('ex-co')?document.getElementById('ex-co').value:'all';
   var ss=getStores();var list=[];var seen={};
   for(var i=0;i<ss.length;i++){
     if(mgrF!=='all'&&ss[i].manager!==mgrF)continue;
+    if(coF!=='all'&&ss[i].coach!==coF)continue;
     var st=ss[i].store;if(st&&!seen[st]){seen[st]=1;list.push(st);}
   }
   list.sort();
   sel.innerHTML='<option value="all">All Stores</option>';
   for(var j=0;j<list.length;j++){var o=document.createElement('option');o.value=list[j];o.textContent=list[j];sel.appendChild(o);}
-  sel.value=cur||'all';
+  // keep prior selection only if still valid
+  var stillValid=false;for(var v=0;v<list.length;v++){if(list[v]===cur)stillValid=true;}
+  sel.value=stillValid?cur:'all';
 }
 function fillExportCo(){
   var sel=document.getElementById('ex-co');if(!sel)return;var cur=sel.value;
@@ -2010,6 +2014,7 @@ function fillExportCo(){
   sel.value=cur||'all';
 }
 function onExMgr(){fillExportStore();fillExportRep();}
+function onExCoStore(){fillExportStore();fillExportRep();}
 function fillExportWk(){var sel=document.getElementById('ex-wk');var wks=getWeeks().slice();sel.innerHTML='<option value="">Select week\u2026</option><option value="__all">All Weeks</option>';wks.sort(function(a,b){return new Date(b.weekStart)-new Date(a.weekStart);});for(var i=0;i<wks.length;i++){var o=document.createElement('option');o.value=wks[i].weekStart;o.textContent=fmtR(wks[i].weekStart,wks[i].weekEnd);sel.appendChild(o);}}
 function fillExportRep(){
   var sel=document.getElementById('ex-rep');if(!sel)return;var cur=sel.value;
@@ -2035,9 +2040,15 @@ function collectExportTargets(){
   var mgrF=document.getElementById('ex-mgr')?document.getElementById('ex-mgr').value:'all';
   var storeF=document.getElementById('ex-store')?document.getElementById('ex-store').value:'all';
   var weeks=getWeeks();var scope;
-  if(ws==='__all'||(rf!=='all'&&ws==='')){scope=weeks.slice();}
-  else if(!ws){return{err:'Select a week (or choose All Weeks).'};}
+  var groupPicked=(rf!=='all'||cf!=='all'||mgrF!=='all'||storeF!=='all');
+  if(ws==='__all'){scope=weeks.slice();}
+  else if(ws===''){
+    // No week chosen: if a rep is picked, show all their weeks; otherwise default to latest week.
+    if(rf!=='all')scope=weeks.slice();
+    else{var lw=getLatestWeek();scope=lw?[lw]:[];}
+  }
   else{scope=weeks.filter(function(w){return w.weekStart===ws;});}
+  if(!scope.length)return{err:'No weeks loaded yet.'};
   scope.sort(function(a,b){return new Date(b.weekStart)-new Date(a.weekStart);});
   var targets=[];
   for(var wi=0;wi<scope.length;wi++){var wk=scope[wi];
