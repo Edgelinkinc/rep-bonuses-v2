@@ -480,6 +480,21 @@ tbody td{padding:10px 12px;white-space:nowrap}
         </div>
       </div>
 
+      <div class="view" id="view-promoentry">
+        <div class="card">
+          <div class="ct">Promo Entry \u2014 Units in Promo Window</div>
+          <p style="font-size:13px;color:var(--gray);margin-bottom:14px">Pick a week and a promotion, then enter how many of each rep's units fell within the promo dates. Only per-unit promos (MIM, Voice, Upgrade, HSI, BTS) need entry; accessory promos apply to the whole week automatically.</p>
+          <div class="fc">
+            <select id="pe-wk" onchange="renderPromoEntry()"><option value="">Select week\u2026</option></select>
+            <select id="pe-promo" onchange="renderPromoEntry()"><option value="">Select promotion\u2026</option></select>
+            <select id="pe-co" onchange="renderPromoEntry()"><option value="all">All Coaches</option></select>
+          </div>
+          <div id="pe-status" style="font-size:13px;font-weight:600;color:var(--gray);margin-bottom:8px"></div>
+          <div class="tw"><table><thead><tr><th>Rep</th><th>NTID</th><th>Coach</th><th>Total Units</th><th>Units in Promo</th></tr></thead><tbody id="pe-body"></tbody></table></div>
+          <div style="text-align:right;margin-top:12px"><button class="btn btn-p" onclick="savePromoEntryGrid()">Save All Promo Units</button></div>
+        </div>
+      </div>
+
       <div class="view" id="view-export">
         <div class="card">
           <div class="ct">Export Bonus Slips (PDF)</div>
@@ -622,7 +637,7 @@ function isMobile(){
 // ═══ SHAREPOINT SYNC (JSON blobs in Settings list) ═══
 var SYNC_KEYS=null;
 function getSyncKeys(){
-  if(!SYNC_KEYS)SYNC_KEYS=[{sp:'weeks',ls:SK.weeks},{sp:'roster',ls:SK.roster},{sp:'stores',ls:SK.stores},{sp:'chargebacks',ls:SK.cb},{sp:'rules',ls:SK.rules},{sp:'cb_categories',ls:SK.cats},{sp:'coach_emails',ls:SK.cemails},{sp:'coaches',ls:SK.coaches}];
+  if(!SYNC_KEYS)SYNC_KEYS=[{sp:'weeks',ls:SK.weeks},{sp:'roster',ls:SK.roster},{sp:'stores',ls:SK.stores},{sp:'chargebacks',ls:SK.cb},{sp:'rules',ls:SK.rules},{sp:'cb_categories',ls:SK.cats},{sp:'coach_emails',ls:SK.cemails},{sp:'coaches',ls:SK.coaches},{sp:'corrections',ls:SK.corr},{sp:'promos',ls:SK.promos},{sp:'promo_units',ls:SK.promounits}];
   return SYNC_KEYS;
 }
 var syncDirty={};var syncTimer=null;
@@ -758,7 +773,7 @@ function completeAdminConnect(account){
   updateSyncBadge();
   spPull(function(ok){if(ok){showToast('Data loaded from SharePoint.');if(role==='admin')renderAH();}});
 }
-var SK={weeks:'elb_wks',roster:'elb_ros',stores:'elb_sto',rules:'elb_rul',cb:'elb_cb',cats:'elb_cats',cemails:'elb_cemails',coaches:'elb_coaches',loginlog:'elb_loginlog'};
+var SK={weeks:'elb_wks',roster:'elb_ros',stores:'elb_sto',rules:'elb_rul',cb:'elb_cb',cats:'elb_cats',cemails:'elb_cemails',coaches:'elb_coaches',loginlog:'elb_loginlog',corr:'elb_corr',promos:'elb_promos',promounits:'elb_promounits',audit:'elb_audit'};
 var DEF_CATS=['XBM','RMA','SIM Card','Cash Shortage'];
 var DEF_COACHES=['Rose Perez','Ambulai Sheku','Joel Montero','Manny Rivera','Mr. Watts','Cheryl'];
 // COACHES is derived live from storage; TBD is always appended last and is not stored/editable.
@@ -849,7 +864,168 @@ function calcArcade(hsi,bts){
   return{hsi:h,bts:b,total:h+b};
 }
 function calcUpg(u){return Math.max(0,u||0)*getRules().upg;}
-function calcRep(rep){
+// ═══════════════════════════════════════════════════════════
+// PAYROLL CORRECTIONS + RATE PROMOS  (data layer)
+// ═══════════════════════════════════════════════════════════
+// Corrections: keyed by ntid|weekStart. Two kinds:
+//   type:'quick'  -> {mode:'delta'|'set', amount, reason}
+//   type:'fields' -> {fields:{voice_acts,mim_acts,totaccessoryprofit,upgrade_count,hsi_acts,bts_acts,retention}, reason}
+function getCorrections(){return ld(SK.corr,{});}
+function corrKey(ntid,weekStart){return (ntid||'').toLowerCase()+'|'+weekStart;}
+function getCorrection(ntid,weekStart){var c=getCorrections();return c[corrKey(ntid,weekStart)]||null;}
+function setCorrection(ntid,weekStart,corr){
+  var all=getCorrections();var key=corrKey(ntid,weekStart);
+  var old=all[key]||null;
+  if(corr===null){delete all[key];}else{all[key]=corr;}
+  sv(SK.corr,all);
+  logAudit('correction',ntid,weekStart,old,corr,corr?corr.reason:'(removed)');
+}
+function clearWeekCorrections(weekStart){
+  var all=getCorrections();var removed=0;
+  for(var k in all){if(k.split('|')[1]===weekStart){delete all[k];removed++;}}
+  if(removed)sv(SK.corr,all);
+  return removed;
+}
+function clearWeekPromoUnits(weekStart){
+  var all=getPromoUnits();var removed=0;
+  for(var k in all){if(k.split('|')[1]===weekStart){delete all[k];removed++;}}
+  if(removed)sv(SK.promounits,all);
+  return removed;
+}
+function countWeekCorrections(weekStart){
+  var all=getCorrections();var n=0;
+  for(var k in all){if(k.split('|')[1]===weekStart)n++;}
+  return n;
+}
+
+// Promos: array of {id,name,rate:'mim'|'voice'|'upgrade'|'hsi'|'bts'|'acc',value,start,end}
+//   For per-unit rates (mim/voice/upgrade/hsi/bts) value = new per-unit $.
+//   For acc, value = new percent applied to that whole week's accessory profit.
+function getPromos(){return ld(SK.promos,[]);}
+function savePromos(list){sv(SK.promos,list);}
+// Promo units: how many of a rep's units fall in a promo window, keyed ntid|weekStart|promoId -> count
+function getPromoUnits(){return ld(SK.promounits,{});}
+function promoUnitKey(ntid,weekStart,promoId){return (ntid||'').toLowerCase()+'|'+weekStart+'|'+promoId;}
+function getPromoUnit(ntid,weekStart,promoId){var u=getPromoUnits();return u[promoUnitKey(ntid,weekStart,promoId)]||0;}
+function setPromoUnit(ntid,weekStart,promoId,count){
+  var all=getPromoUnits();var key=promoUnitKey(ntid,weekStart,promoId);
+  if(!count||count<=0){delete all[key];}else{all[key]=count;}
+  sv(SK.promounits,all);
+}
+// Which promos overlap a given pay-week (weekStart..weekEnd inclusive)?
+function promosForWeek(weekStart,weekEnd){
+  var ps=getPromos();var out=[];
+  for(var i=0;i<ps.length;i++){var p=ps[i];
+    // overlap if promo.start <= weekEnd AND promo.end >= weekStart
+    if(p.start<=weekEnd&&p.end>=weekStart)out.push(p);
+  }
+  return out;
+}
+
+// Audit log: append-only list of {ts,kind,ntid,weekStart,who,reason,old,new}
+function logAudit(kind,ntid,weekStart,oldVal,newVal,reason){
+  var log=ld(SK.audit,[]);
+  log.push({ts:new Date().toISOString(),kind:kind,ntid:ntid,weekStart:weekStart,
+    who:(role==='admin'?((msalAccount&&msalAccount.username)||'Admin (PIN)'):(myCoachName||role||'?')),
+    reason:reason||'',old:oldVal,new:newVal});
+  if(log.length>3000)log=log.slice(log.length-3000);
+  sv(SK.audit,log);
+}
+function getAudit(){return ld(SK.audit,[]);}
+
+// Apply promos to a rep for a week: returns per-component payout overrides + split detail.
+// Only per-unit rates split; acc is a whole-week % override.
+function applyPromos(rep,wk){
+  if(!wk)return null;
+  var ps=promosForWeek(wk.weekStart,wk.weekEnd);
+  if(!ps.length)return null;
+  var r=getRules();var out={splits:[]};
+  for(var i=0;i<ps.length;i++){var p=ps[i];
+    if(p.rate==='acc'){
+      out.accPctOverride=p.value;out.accPromoName=p.name;
+      continue;
+    }
+    var units=getPromoUnit(rep.ntid,wk.weekStart,p.id);
+    if(units<=0)continue;
+    out[p.rate]=out[p.rate]||{promoUnits:0,value:p.value,name:p.name};
+    out[p.rate].promoUnits+=units;out[p.rate].value=p.value;out[p.rate].name=p.name;
+  }
+  return out;
+}
+
+function calcRep(rep){return calcRepFor(rep,null);}
+// Full calc with optional week context (enables promos + corrections for that week).
+function calcRepFor(rep,wk){
+  // ── Field-level correction: override rep numbers before calc ──
+  var corr=wk?getCorrection(rep.ntid,wk.weekStart):null;
+  var eff=rep;
+  if(corr&&corr.type==='fields'&&corr.fields){
+    eff={};for(var k in rep)eff[k]=rep[k];
+    for(var f in corr.fields){if(corr.fields[f]!==''&&corr.fields[f]!==null&&corr.fields[f]!==undefined)eff[f]=corr.fields[f];}
+  }
+  var promo=wk?applyPromos(eff,wk):null;
+  var v=calcVoicePromo(eff,promo);
+  var m=calcMIMPromo(eff,promo);
+  var ac=calcAccPromo(eff,promo);
+  var ar=calcArcadePromo(eff,promo);
+  var ug=calcUpgPromo(eff,promo);
+  var weekly=v.payout+m.payout+ac.payout+ug.payout;
+  var result={voice:v,mim:m.payout,mimDetail:m,acc:ac,arc:ar,upg:ug.payout,upgDetail:ug,
+    weeklyBonus:weekly,arcade:ar.total,promo:promo,corrected:false};
+  // ── Quick correction: delta or set-net, applied AFTER base calc ──
+  if(corr&&corr.type==='quick'){
+    result.corrected=true;result.correction=corr;
+    if(corr.mode==='set'){result.adjustment=corr.amount-weekly;result.weeklyBonus=corr.amount;}
+    else{result.adjustment=corr.amount;result.weeklyBonus=weekly+corr.amount;}
+  } else if(corr&&corr.type==='fields'){
+    result.corrected=true;result.correction=corr;
+  }
+  return result;
+}
+// Component calcs that honor promo splits (fall back to base when no promo)
+function calcVoicePromo(rep,promo){
+  var base=calcVoice(rep.voice_acts,rep.mim_acts,rep.retention);
+  if(!promo||!promo.voice){return base;}
+  var r=getRules();var rate=base.idx>=0?r.vt[base.idx].pay:0;
+  var total=Math.max(0,rep.voice_acts||0);var pu=Math.min(promo.voice.promoUnits,total);
+  var normal=(total-pu)*rate;var promoPay=pu*promo.voice.value;
+  var pay=normal+promoPay;if(base.decel)pay*=r.df;
+  return{payout:pay,tier:base.tier,lines:base.lines,decel:base.decel,idx:base.idx,
+    promoSplit:{normalUnits:total-pu,normalRate:rate,promoUnits:pu,promoRate:promo.voice.value,name:promo.voice.name}};
+}
+function calcMIMPromo(rep,promo){
+  var r=getRules();var total=Math.max(0,rep.mim_acts||0);
+  if(!promo||!promo.mim){return{payout:total*r.mpp};}
+  var pu=Math.min(promo.mim.promoUnits,total);var normal=(total-pu)*r.mpp;var pp=pu*promo.mim.value;
+  return{payout:normal+pp,promoSplit:{normalUnits:total-pu,normalRate:r.mpp,promoUnits:pu,promoRate:promo.mim.value,name:promo.mim.name}};
+}
+function calcUpgPromo(rep,promo){
+  var r=getRules();var total=Math.max(0,rep.upgrade_count||0);
+  if(!promo||!promo.upgrade){return{payout:total*r.upg};}
+  var pu=Math.min(promo.upgrade.promoUnits,total);var normal=(total-pu)*r.upg;var pp=pu*promo.upgrade.value;
+  return{payout:normal+pp,promoSplit:{normalUnits:total-pu,normalRate:r.upg,promoUnits:pu,promoRate:promo.upgrade.value,name:promo.upgrade.name}};
+}
+function calcArcadePromo(rep,promo){
+  var r=getRules();
+  var hsiRate=r.arc.hsi,btsRate=r.arc.bts;
+  var hsiTot=Math.max(0,rep.hsi_acts||0),btsTot=Math.max(0,rep.bts_acts||0);
+  var h,b;
+  if(promo&&promo.hsi){var pu=Math.min(promo.hsi.promoUnits,hsiTot);h=(hsiTot-pu)*hsiRate+pu*promo.hsi.value;}
+  else{h=hsiTot*hsiRate;}
+  if(promo&&promo.bts){var pu2=Math.min(promo.bts.promoUnits,btsTot);b=(btsTot-pu2)*btsRate+pu2*promo.bts.value;}
+  else{b=btsTot*btsRate;}
+  return{hsi:h,bts:b,total:h+b};
+}
+function calcAccPromo(rep,promo){
+  var profit=rep.totaccessoryprofit;
+  if(!profit||profit<=0)return{tier:'No Tier',pct:0,payout:0};
+  if(promo&&promo.accPctOverride!==undefined){
+    return{tier:'Promo',pct:promo.accPctOverride,payout:profit*promo.accPctOverride/100,promoName:promo.accPromoName};
+  }
+  return calcAcc(profit);
+}
+
+function _origCalcRep(rep){
   var v=calcVoice(rep.voice_acts,rep.mim_acts,rep.retention);
   var m=calcMIM(rep.mim_acts);var ac=calcAcc(rep.totaccessoryprofit);
   var ar=calcArcade(rep.hsi_acts,rep.bts_acts);var ug=calcUpg(rep.upgrade_count);
@@ -1017,14 +1193,14 @@ function fillCoachSelects(){
 // ---- NAV ----
 var ANAV=[{id:'admin-home',i:'\uD83C\uDFE0',l:'Dashboard'},{id:'upload',i:'\uD83D\uDCE4',l:'Upload Reports'},
   {id:'chargebacks',i:'\u26A0\uFE0F',l:'Chargebacks'},{id:'tier',i:'\uD83C\uDFC6',l:'Tier Achievement'},
-  {id:'roster',i:'\uD83D\uDC65',l:'Rosters'},{id:'rules',i:'\u2699\uFE0F',l:'Bonus Rules'},{id:'export',i:'\uD83D\uDCC4',l:'Export Slips'},
+  {id:'roster',i:'\uD83D\uDC65',l:'Rosters'},{id:'rules',i:'\u2699\uFE0F',l:'Bonus Rules'},{id:'promoentry',i:'\uD83C\uDF9F\uFE0F',l:'Promo Entry'},{id:'export',i:'\uD83D\uDCC4',l:'Export Slips'},
   {id:'loginlog',i:'\uD83D\uDD11',l:'Login Log'},
   {id:'structure',i:'\uD83D\uDCB0',l:'Pay Structure'}];
 var RNAV=[{id:'mypay',i:'\uD83D\uDCB5',l:'My Pay'},{id:'mytier',i:'\uD83C\uDFC6',l:'My Tier'},{id:'mycb',i:'\u26A0\uFE0F',l:'Chargebacks'},
   {id:'structure',i:'\uD83D\uDCB0',l:'Pay Structure'}];
 var CNAV=[{id:'coach-pay',i:'\uD83D\uDCB5',l:'Team Payouts'},{id:'coach-tier',i:'\uD83C\uDFC6',l:'Team Tiers'},
   {id:'structure',i:'\uD83D\uDCB0',l:'Pay Structure'}];
-var TITLES={'admin-home':'Dashboard','upload':'Upload Reports','chargebacks':'Chargebacks','tier':'Tier Achievement','roster':'Rosters','rules':'Bonus Rules','export':'Export Slips','mypay':'My Pay','mytier':'My Tier','mycb':'My Chargebacks','structure':'Pay Structure','coach-pay':'Team Payouts','coach-tier':'Team Tiers','coach-cb':'Team Chargebacks','loginlog':'Login Log'};
+var TITLES={'admin-home':'Dashboard','upload':'Upload Reports','chargebacks':'Chargebacks','tier':'Tier Achievement','roster':'Rosters','rules':'Bonus Rules','promoentry':'Promo Entry','export':'Export Slips','mypay':'My Pay','mytier':'My Tier','mycb':'My Chargebacks','structure':'Pay Structure','coach-pay':'Team Payouts','coach-tier':'Team Tiers','coach-cb':'Team Chargebacks','loginlog':'Login Log'};
 
 function buildNav(items){
   var nav=document.getElementById('snav');nav.innerHTML='';
@@ -1047,6 +1223,7 @@ function navTo(id){
   if(id==='roster'){renderRoster();renderStores();}
   if(id==='rules')renderRules();
   if(id==='export')renderExport();
+  if(id==='promoentry')renderPromoEntry();
   if(id==='mypay')renderMyPay();
   if(id==='mytier')renderMyTier();
   if(id==='mycb')renderMyCB();
@@ -1080,6 +1257,19 @@ function processRpts(){
   var st=document.getElementById('proc-status');
   if(!ws||!we){st.textContent='\u26A0\uFE0F Set week dates.';return;}
   if(!rawF.pbi||!rawF.emp||!rawF.csv){st.textContent='\u26A0\uFE0F All 3 reports required.';return;}
+  // Guardrail: warn if reprocessing a week that has manual corrections.
+  var existingCorr=countWeekCorrections(ws);
+  if(existingCorr>0&&!processRpts._confirmed){
+    openConf('This week ('+ws+') has '+existingCorr+' manual correction(s). Reprocessing will CLEAR them and recalculate from the reports. Continue?',function(){
+      processRpts._confirmed=true;
+      clearWeekCorrections(ws);
+      clearWeekPromoUnits(ws);
+      processRpts();
+      processRpts._confirmed=false;
+    });
+    return;
+  }
+  processRpts._confirmed=false;
   st.textContent='\u23F3 Processing\u2026';
   rdXLSX(rawF.pbi,function(pbi){
     if(!pbi){st.textContent='\u274C Failed to read Power BI file.';return;}
@@ -1238,11 +1428,13 @@ function renderAH(){
       var rep=reps[i];
       if(coF!=='all'&&liveCoach(rep)!==coF)continue;
       if(repF!=='all'&&rep.ntid.toLowerCase()!==repF.toLowerCase())continue;
-      var c=calcRep(rep);var cbd=cbForWeek(rep.ntid,wk.weekStart);var net=Math.max(0,c.weeklyBonus-cbd.total);
+      var c=calcRepFor(rep,wk);var cbd=cbForWeek(rep.ntid,wk.weekStart);var net=Math.max(0,c.weeklyBonus-cbd.total);
       tB+=c.weeklyBonus;tA+=c.arcade;tC+=cbd.total;tN+=net;cnt++;
-      rows+='<tr style="cursor:pointer" onclick="ahViewRep(\''+esc(rep.ntid)+'\',\''+wk.weekStart+'\')" title="View slip breakdown">'+
+      var isEdited=!!getCorrection(rep.ntid,wk.weekStart);
+      var editBadge=isEdited?' <span style="background:var(--purple);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:4px;vertical-align:middle">EDITED</span>':'';
+      rows+='<tr style="cursor:pointer'+(isEdited?';background:#faf7fc':'')+'" onclick="ahViewRep(\''+esc(rep.ntid)+'\',\''+wk.weekStart+'\')" title="View slip breakdown">'+
         '<td style="font-size:11px;color:var(--gray);white-space:nowrap">'+fmtR(wk.weekStart,wk.weekEnd)+'</td>'+
-        '<td><strong style="color:var(--magenta)">'+esc(rep.full_name)+'</strong></td>'+
+        '<td><strong style="color:var(--magenta)">'+esc(rep.full_name)+'</strong>'+editBadge+'</td>'+
         '<td style="font-size:11px;color:var(--gray)">'+esc(rep.ntid)+'</td>'+
         '<td>'+esc(liveCoach(rep))+'</td><td>'+esc(liveStore(rep)||'\u2014')+'</td>'+
         '<td>'+tb(c.voice.tier)+'</td>'+
@@ -1277,10 +1469,165 @@ function ahViewRep(ntid,weekStart){
   document.getElementById('mo-rep-view-name').textContent=rd.full_name+'  \u2014  '+fmtR(wk.weekStart,wk.weekEnd);
   document.getElementById('mo-rep-view-body').innerHTML=
     b.decel+b.statsWrapped+
-    '<div style="text-align:right;margin:8px 0"><button class="btn btn-p btn-sm" onclick="exportOneSlip(\''+esc(rd.ntid)+'\',\''+wk.weekStart+'\')">&#11015; Download This Slip (PDF)</button></div>'+
+    '<div style="text-align:right;margin:8px 0"><button class="btn btn-p btn-sm" onclick="exportOneSlip(\''+esc(rd.ntid)+'\',\''+wk.weekStart+'\')">&#11015; Download This Slip (PDF)</button>'+
+    (role==='admin'?' <button class="btn btn-pu btn-sm" onclick="openCorrectionPanel(\''+esc(rd.ntid)+'\',\''+wk.weekStart+'\')">&#9998; Edit / Correct</button>':'')+'</div>'+
+    (role==='admin'?'<div id="corr-panel"></div>':'')+
     '<div class="card" style="box-shadow:none;border:1px solid var(--gl);margin-bottom:12px"><div class="ct">Weekly Bonus Breakdown</div>'+b.breakdown+'</div>'+
     '<div class="card" style="box-shadow:none;border:1px solid var(--gl);margin-bottom:0"><div class="ct">Monthly Running Total</div>'+b.monthly+'</div>';
   om('mo-rep-view');
+}
+// ═══ CORRECTION PANEL (admin, in rep modal) ═══
+var _corrCtx={ntid:null,weekStart:null,tab:'quick'};
+function openCorrectionPanel(ntid,weekStart){
+  _corrCtx={ntid:ntid,weekStart:weekStart,tab:'quick'};
+  renderCorrectionPanel();
+}
+function corrTab(t){_corrCtx.tab=t;renderCorrectionPanel();}
+function renderCorrectionPanel(){
+  var el=document.getElementById('corr-panel');if(!el)return;
+  var ntid=_corrCtx.ntid,weekStart=_corrCtx.weekStart;
+  var wk=null;var wks=getWeeks();for(var i=0;i<wks.length;i++){if(wks[i].weekStart===weekStart){wk=wks[i];break;}}
+  var rd=null;for(var r=0;r<wk.reps.length;r++){if(wk.reps[r].ntid.toLowerCase()===ntid.toLowerCase()){rd=wk.reps[r];break;}}
+  var existing=getCorrection(ntid,weekStart);
+  var promos=promosForWeek(wk.weekStart,wk.weekEnd);
+  var tab=_corrCtx.tab;
+  var tabBtn=function(id,lbl){return '<button class="btn btn-sm '+(tab===id?'btn-p':'btn-s')+'" onclick="corrTab(\''+id+'\')" style="margin-right:6px">'+lbl+'</button>';};
+  var body='';
+  if(tab==='quick'){
+    var qMode=(existing&&existing.type==='quick')?existing.mode:'delta';
+    var qAmt=(existing&&existing.type==='quick')?existing.amount:'';
+    var qRsn=(existing&&existing.type==='quick')?existing.reason:'';
+    body='<div style="font-size:12px;color:var(--gray);margin-bottom:8px">Add or subtract a dollar amount, or set the net to an exact figure. Shows on the slip as a Manual Adjustment.</div>'+
+      '<div class="rr" style="gap:8px;margin-bottom:8px"><select id="corr-mode" style="flex:0 0 auto;padding:8px;border:1.5px solid var(--gl);border-radius:8px">'+
+      '<option value="delta"'+(qMode==='delta'?' selected':'')+'>Adjust by (+/-)</option>'+
+      '<option value="set"'+(qMode==='set'?' selected':'')+'>Set net to</option></select>'+
+      '<input type="number" step="0.01" id="corr-amt" placeholder="0.00" value="'+qAmt+'" style="flex:1;padding:8px;border:1.5px solid var(--gl);border-radius:8px"></div>'+
+      '<input type="text" id="corr-reason" placeholder="Reason (required)" value="'+esc(qRsn)+'" style="width:100%;padding:8px;border:1.5px solid var(--gl);border-radius:8px;margin-bottom:8px;box-sizing:border-box">';
+  } else if(tab==='fields'){
+    var f=(existing&&existing.type==='fields')?existing.fields:{};
+    var fRsn=(existing&&existing.type==='fields')?existing.reason:'';
+    var fld=function(id,lbl,cur){return '<div style="flex:1;min-width:110px"><div style="font-size:11px;color:var(--gray);margin-bottom:2px">'+lbl+'</div><input type="number" step="0.01" id="cf-'+id+'" placeholder="'+cur+'" value="'+(f[id]!==undefined?f[id]:'')+'" style="width:100%;padding:6px;border:1.5px solid var(--gl);border-radius:6px;box-sizing:border-box"></div>';};
+    body='<div style="font-size:12px;color:var(--gray);margin-bottom:8px">Override the rep\'s raw numbers for this week; the bonus recalculates. Leave a field blank to keep the report value (shown as placeholder).</div>'+
+      '<div class="rr" style="gap:8px;flex-wrap:wrap;margin-bottom:8px">'+
+      fld('voice_acts','New Voice',rd.voice_acts||0)+fld('mim_acts','MIM',rd.mim_acts||0)+
+      fld('totaccessoryprofit','Acc Profit',rd.totaccessoryprofit||0)+fld('upgrade_count','Upgrades',rd.upgrade_count||0)+
+      fld('hsi_acts','HSI',rd.hsi_acts||0)+fld('bts_acts','BTS',rd.bts_acts||0)+
+      fld('retention','Retention %',(rd.retention!==null&&rd.retention!==undefined?rd.retention:''))+'</div>'+
+      '<input type="text" id="corr-reason-f" placeholder="Reason (required)" value="'+esc(fRsn)+'" style="width:100%;padding:8px;border:1.5px solid var(--gl);border-radius:8px;margin-bottom:8px;box-sizing:border-box">';
+  } else if(tab==='promo'){
+    if(!promos.length){body='<div style="font-size:13px;color:var(--gray);padding:12px 0">No rate promotions are active for this week. Add one in <strong>Bonus Rules \u2192 Rate Promotions</strong>.</div>';}
+    else{
+      body='<div style="font-size:12px;color:var(--gray);margin-bottom:8px">For each active promo, enter how many of this rep\'s units fall within the promo dates.</div>';
+      for(var p=0;p<promos.length;p++){var pr=promos[p];
+        if(pr.rate==='acc'){body+='<div style="font-size:12px;padding:8px;background:#f0f8f0;border-radius:6px;margin-bottom:6px"><strong>'+esc(pr.name)+'</strong> \u2014 accessory % bump to '+pr.value+'% (applies to the whole week automatically, no entry needed)</div>';continue;}
+        var cur=getPromoUnit(ntid,weekStart,pr.id);
+        var rateLbl={mim:'MIM',voice:'Voice',upgrade:'Upgrade',hsi:'HSI',bts:'BTS'}[pr.rate]||pr.rate;
+        body+='<div class="rr" style="gap:8px;margin-bottom:6px;align-items:center"><div style="flex:1;font-size:13px"><strong>'+esc(pr.name)+'</strong> ('+rateLbl+' @ $'+pr.value+', '+fmtD(pr.start)+'\u2013'+fmtD(pr.end)+')</div>'+
+          '<input type="number" id="pu-'+pr.id+'" value="'+(cur||'')+'" placeholder="0" style="flex:0 0 80px;padding:6px;border:1.5px solid var(--gl);border-radius:6px"> <span style="font-size:12px;color:var(--gray)">units</span></div>';
+      }
+    }
+  }
+  var statusLine='';
+  if(existing){statusLine='<div style="font-size:12px;color:var(--purple);font-weight:600;margin-bottom:8px">\u2699\uFE0F This rep has an active '+(existing.type==='quick'?'quick correction':'field correction')+' for this week.</div>';}
+  el.innerHTML='<div class="card" style="box-shadow:none;border:2px solid var(--purple);margin-bottom:12px;background:#faf7fc">'+
+    '<div class="ct" style="color:var(--purple)">Edit / Correct \u2014 '+esc(rd.full_name)+'</div>'+
+    statusLine+
+    '<div style="margin-bottom:10px">'+tabBtn('quick','Quick Correction')+tabBtn('fields','Edit Numbers')+tabBtn('promo','Promo Units')+'</div>'+
+    body+
+    (tab!=='promo'?'<div style="display:flex;gap:8px;margin-top:4px"><button class="btn btn-p btn-sm" onclick="saveCorrection()">Save Correction</button>'+
+      (existing?'<button class="btn btn-d btn-sm" onclick="removeCorrection()">Remove Correction</button>':'')+'</div>':
+      (promos.length?'<div style="margin-top:4px"><button class="btn btn-p btn-sm" onclick="savePromoUnits()">Save Promo Units</button></div>':''))+
+    '</div>';
+}
+function saveCorrection(){
+  var ntid=_corrCtx.ntid,ws=_corrCtx.weekStart,tab=_corrCtx.tab;
+  if(tab==='quick'){
+    var mode=document.getElementById('corr-mode').value;
+    var amt=parseFloat(document.getElementById('corr-amt').value);
+    var reason=(document.getElementById('corr-reason').value||'').trim();
+    if(isNaN(amt)){showToast('Enter an amount.');return;}
+    if(!reason){showToast('A reason is required.');return;}
+    setCorrection(ntid,ws,{type:'quick',mode:mode,amount:amt,reason:reason});
+  } else if(tab==='fields'){
+    var reason2=(document.getElementById('corr-reason-f').value||'').trim();
+    if(!reason2){showToast('A reason is required.');return;}
+    var fields={};var ids=['voice_acts','mim_acts','totaccessoryprofit','upgrade_count','hsi_acts','bts_acts','retention'];
+    var any=false;
+    for(var i=0;i<ids.length;i++){var v=document.getElementById('cf-'+ids[i]).value;if(v!==''){fields[ids[i]]=parseFloat(v);any=true;}}
+    if(!any){showToast('Enter at least one field to override.');return;}
+    setCorrection(ntid,ws,{type:'fields',fields:fields,reason:reason2});
+  }
+  showToast('Correction saved.');
+  ahViewRep(ntid,ws); // refresh modal with new numbers
+  if(typeof renderAH==='function')renderAH();
+}
+function removeCorrection(){
+  setCorrection(_corrCtx.ntid,_corrCtx.weekStart,null);
+  showToast('Correction removed.');
+  ahViewRep(_corrCtx.ntid,_corrCtx.weekStart);
+  if(typeof renderAH==='function')renderAH();
+}
+function renderPromoEntry(){
+  var wkSel=document.getElementById('pe-wk');var pSel=document.getElementById('pe-promo');var coSel=document.getElementById('pe-co');
+  if(!wkSel)return;
+  // Fill week dropdown
+  var curW=wkSel.value;var wks=getWeeks().slice().sort(function(a,b){return new Date(b.weekStart)-new Date(a.weekStart);});
+  wkSel.innerHTML='<option value="">Select week\u2026</option>';
+  for(var i=0;i<wks.length;i++){var o=document.createElement('option');o.value=wks[i].weekStart;o.textContent=fmtR(wks[i].weekStart,wks[i].weekEnd);wkSel.appendChild(o);}
+  wkSel.value=curW;
+  // Fill coach dropdown
+  var curC=coSel.value;coSel.innerHTML='<option value="all">All Coaches</option>';
+  var cs=getCoaches();for(var c=0;c<cs.length;c++){var oc=document.createElement('option');oc.value=cs[c];oc.textContent=cs[c];coSel.appendChild(oc);}
+  coSel.value=curC||'all';
+  var body=document.getElementById('pe-body');var status=document.getElementById('pe-status');
+  var ws=wkSel.value;
+  if(!ws){body.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--gray);padding:20px">Select a week to begin.</td></tr>';pSel.innerHTML='<option value="">Select promotion\u2026</option>';status.textContent='';return;}
+  var wk=null;for(var w=0;w<wks.length;w++){if(wks[w].weekStart===ws){wk=wks[w];break;}}
+  // Fill promo dropdown = promos overlapping this week, per-unit only
+  var promos=promosForWeek(wk.weekStart,wk.weekEnd).filter(function(p){return p.rate!=='acc';});
+  var curP=pSel.value;pSel.innerHTML='<option value="">Select promotion\u2026</option>';
+  var rateLbl={mim:'MIM',voice:'Voice',upgrade:'Upgrade',hsi:'HSI',bts:'BTS'};
+  for(var p=0;p<promos.length;p++){var op=document.createElement('option');op.value=promos[p].id;op.textContent=promos[p].name+' ('+rateLbl[promos[p].rate]+' @ $'+promos[p].value+')';pSel.appendChild(op);}
+  pSel.value=curP;
+  var accPromos=promosForWeek(wk.weekStart,wk.weekEnd).filter(function(p){return p.rate==='acc';});
+  if(!promos.length){
+    body.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--gray);padding:20px">No per-unit promotions active for this week.'+(accPromos.length?' (An accessory % promo is active and applies automatically.)':'')+'</td></tr>';
+    status.textContent='';return;
+  }
+  var pid=pSel.value;
+  if(!pid){body.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--gray);padding:20px">Select a promotion to enter units.</td></tr>';status.textContent='';return;}
+  var promo=null;for(var pp=0;pp<promos.length;pp++){if(promos[pp].id===pid){promo=promos[pp];break;}}
+  var coF=coSel.value;
+  var unitField={mim:'mim_acts',voice:'voice_acts',upgrade:'upgrade_count',hsi:'hsi_acts',bts:'bts_acts'}[promo.rate];
+  var reps=wk.reps.slice().sort(function(a,b){var al=(a.full_name.split(' ').pop()||'').toLowerCase();var bl=(b.full_name.split(' ').pop()||'').toLowerCase();return al<bl?-1:al>bl?1:0;});
+  var rows='';var shown=0;
+  for(var r=0;r<reps.length;r++){var rep=reps[r];
+    if(coF!=='all'&&liveCoach(rep)!==coF)continue;
+    var totalUnits=Math.max(0,rep[unitField]||0);
+    if(totalUnits<=0)continue; // only reps who have units of this type
+    shown++;
+    var cur=getPromoUnit(rep.ntid,ws,pid);
+    rows+='<tr><td><strong>'+esc(rep.full_name)+'</strong></td><td style="font-size:11px;color:var(--gray)">'+esc(rep.ntid)+'</td>'+
+      '<td>'+esc(liveCoach(rep))+'</td><td class="amt">'+totalUnits+'</td>'+
+      '<td><input type="number" class="pe-inp" data-ntid="'+esc(rep.ntid)+'" data-pid="'+pid+'" min="0" max="'+totalUnits+'" value="'+(cur||'')+'" placeholder="0" style="width:80px;padding:6px;border:1.5px solid var(--gl);border-radius:6px"></td></tr>';
+  }
+  body.innerHTML=rows||'<tr><td colspan="5" style="text-align:center;color:var(--gray);padding:20px">No reps have '+rateLbl[promo.rate]+' units this week.</td></tr>';
+  status.textContent=promo.name+' \u2014 '+fmtD(promo.start)+' to '+fmtD(promo.end)+' \u2014 $'+promo.value+' per '+rateLbl[promo.rate]+' unit. '+shown+' rep(s) with units shown.';
+}
+function savePromoEntryGrid(){
+  var inps=document.querySelectorAll('.pe-inp');var ws=document.getElementById('pe-wk').value;var n=0;
+  for(var i=0;i<inps.length;i++){var el=inps[i];var ntid=el.getAttribute('data-ntid');var pid=el.getAttribute('data-pid');var val=parseInt(el.value)||0;setPromoUnit(ntid,ws,pid,val);if(val>0)n++;}
+  showToast('Saved promo units for '+n+' rep(s).');
+  if(typeof renderAH==='function')renderAH();
+}
+function savePromoUnits(){
+  var ntid=_corrCtx.ntid,ws=_corrCtx.weekStart;
+  var wk=null;var wks=getWeeks();for(var i=0;i<wks.length;i++){if(wks[i].weekStart===ws){wk=wks[i];break;}}
+  var promos=promosForWeek(wk.weekStart,wk.weekEnd);
+  for(var p=0;p<promos.length;p++){if(promos[p].rate==='acc')continue;var inp=document.getElementById('pu-'+promos[p].id);if(!inp)continue;var val=parseInt(inp.value)||0;setPromoUnit(ntid,ws,promos[p].id,val);}
+  showToast('Promo units saved.');
+  ahViewRep(ntid,ws);
+  if(typeof renderAH==='function')renderAH();
 }
 // Download a single rep's slip for a single week
 function exportOneSlip(ntid,weekStart){
@@ -1298,8 +1645,15 @@ function exportOneSlip(ntid,weekStart){
 }
 
 // ---- MY PAY ----
+// Render a breakdown label with optional promo split, e.g. "(4 \u00D7 $10 + 3 \u00D7 $15 MIM Boost)"
+function promoLabel(split,totalUnits,baseRate){
+  if(split&&split.promoUnits>0){
+    return '('+split.normalUnits+' \u00D7 $'+split.normalRate+' + '+split.promoUnits+' \u00D7 $'+split.promoRate+' <span style=\'color:var(--purple);font-weight:600\'>'+esc(split.name)+'</span>)';
+  }
+  return '('+totalUnits+' \u00D7 $'+baseRate+')';
+}
 function repBreakdownHTML(rd,wk){
-  var c=calcRep(rd);var cbd=cbForWeek(rd.ntid,wk.weekStart);var net=Math.max(0,c.weeklyBonus-cbd.total);
+  var c=calcRepFor(rd,wk);var cbd=cbForWeek(rd.ntid,wk.weekStart);var net=Math.max(0,c.weeklyBonus-cbd.total);
   var r=getRules();var tmax=r.vt[r.vt.length-1].min+10;var pct=Math.min(100,(c.voice.lines/tmax)*100);
   var accProfit=rd.totaccessoryprofit||0;var accMax=r.at[r.at.length-1].min;var accPct=accMax>0?Math.min(100,(accProfit/accMax)*100):0;
   var pvp=c.voice.idx>=0?r.vt[c.voice.idx].pay:0;
@@ -1321,10 +1675,12 @@ function repBreakdownHTML(rd,wk){
     '<span style="font-size:13px;font-weight:600">Accessory Tier: '+tierLabel(c.acc.tier)+' ('+fmt(accProfit)+' net profit'+(c.acc.pct>0?' \u2014 '+c.acc.pct+'%':'')+')</span>'+tb(c.acc.tier)+
     '</div><div class="tbw"><div class="tb" style="width:'+accPct+'%"></div></div></div>'+
     '<div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--purple);margin:8px 0 6px">Weekly Bonus</div>'+
-    '<div class="br"><span class="bl">New Voice Acts ('+Math.max(0,rd.voice_acts||0)+' \u00D7 $'+pvp+')</span><span class="bv">'+fmt(c.voice.payout)+'</span></div>'+
-    '<div class="br"><span class="bl">MIM Lines ('+(rd.mim_acts||0)+' \u00D7 $'+r.mpp+')</span><span class="bv">'+fmt(c.mim)+'</span></div>'+
-    '<div class="br"><span class="bl">Accessories ('+tierLabel(c.acc.tier)+' \u2014 '+fmt(accProfit)+' net profit \u00D7 '+c.acc.pct+'%)</span><span class="bv">'+fmt(c.acc.payout)+'</span></div>'+
-    '<div class="br"><span class="bl">Upgrades ('+(rd.upgrade_count||0)+' \u00D7 $'+r.upg+')</span><span class="bv">'+fmt(c.upg)+'</span></div>'+
+    '<div class="br"><span class="bl">New Voice Acts '+promoLabel(c.voice.promoSplit,Math.max(0,rd.voice_acts||0),pvp)+(c.voice.decel?' <span style=\'color:var(--red);font-size:11px\'>(decel \u00D7'+r.df+')</span>':'')+'</span><span class="bv">'+fmt(c.voice.payout)+'</span></div>'+
+    '<div class="br"><span class="bl">MIM Lines '+promoLabel(c.mimDetail&&c.mimDetail.promoSplit,(rd.mim_acts||0),r.mpp)+'</span><span class="bv">'+fmt(c.mim)+'</span></div>'+
+    '<div class="br"><span class="bl">Accessories ('+tierLabel(c.acc.tier)+' \u2014 '+fmt(accProfit)+' net profit \u00D7 '+c.acc.pct+'%'+(c.acc.promoName?' \u2014 '+esc(c.acc.promoName):'')+')</span><span class="bv">'+fmt(c.acc.payout)+'</span></div>'+
+    '<div class="br"><span class="bl">Upgrades '+promoLabel(c.upgDetail&&c.upgDetail.promoSplit,(rd.upgrade_count||0),r.upg)+'</span><span class="bv">'+fmt(c.upg)+'</span></div>'+
+    (c.corrected&&c.correction&&c.correction.type==='fields'?'<div class="br" style="background:#faf7fc"><span class="bl" style="color:var(--purple)">\u2699\uFE0F Manual field correction \u2014 '+esc(c.correction.reason)+'</span><span class="bv"></span></div>':'')+
+    (c.corrected&&c.adjustment!==undefined?'<div class="br" style="background:#faf7fc"><span class="bl" style="color:var(--purple)">\u2699\uFE0F Manual Adjustment'+(c.correction&&c.correction.reason?' \u2014 '+esc(c.correction.reason):'')+'</span><span class="bv">'+(c.adjustment>=0?'+':'')+fmt(c.adjustment)+'</span></div>':'')+
     '<div class="br tot"><span class="bl">WEEKLY BONUS TOTAL</span><span class="bv">'+fmt(c.weeklyBonus)+'</span></div>'+
     '<div class="arcs"><div class="at">\uD83D\uDD79 Arcade Daily (Paid Separately \u2014 Not in Weekly Bonus)</div>'+
     '<div class="br arc" style="border-color:#ffe0b2"><span class="bl">HSI ('+(rd.hsi_acts||0)+' \u00D7 $'+r.arc.hsi+')</span><span class="bv">'+fmt(c.arc.hsi)+'</span></div>'+
@@ -1339,7 +1695,7 @@ function repBreakdownHTML(rd,wk){
   var mB=0,mC=0,wR='';
   for(var w=0;w<weeks.length;w++){var wk2=weeks[w];for(var rr=0;rr<wk2.reps.length;rr++){
     if(wk2.reps[rr].ntid.toLowerCase()!==rd.ntid.toLowerCase())continue;
-    var wc=calcRep(wk2.reps[rr]);var wCB=cbForWeek(wk2.reps[rr].ntid,wk2.weekStart);
+    var wc=calcRepFor(wk2.reps[rr],wk2);var wCB=cbForWeek(wk2.reps[rr].ntid,wk2.weekStart);
     mB+=wc.weeklyBonus;mC+=wCB.total;
     wR+='<div class="br"><span class="bl">Week of '+fmtD(wk2.weekStart)+'</span><span class="bv">'+fmt(Math.max(0,wc.weeklyBonus-wCB.total))+'</span></div>';
   }}
@@ -1401,7 +1757,7 @@ function renderMyPay(){
   var rd=null;
   for(var i=0;i<wk.reps.length;i++){if(wk.reps[i].ntid.toLowerCase()===myNt){rd=wk.reps[i];break;}}
   if(!rd){se.innerHTML='<p style="color:var(--gray);padding:20px">No data found for your NTID.</p>';be.innerHTML='';me.innerHTML='';return;}
-  var c=calcRep(rd);
+  var c=calcRepFor(rd,wk);
   document.getElementById('db').className='db'+(c.voice.decel?' show':'');
   if(c.voice.decel){var rr9=getRules();document.getElementById('db').innerHTML='\u26A0\uFE0F 50% Decelerator Applied \u2014 95-day retention ('+(rd.retention!==null&&rd.retention!==undefined?rd.retention.toFixed(1)+'%':'n/a')+') is below '+rr9.drt+'%';}
   var bd=repBreakdownHTML(rd,wk);
@@ -1423,7 +1779,7 @@ function renderMyTier(){
   // ── Current-week hero card ──
   var latest=mine[0];var rd=null;
   for(var i=0;i<latest.reps.length;i++){if(latest.reps[i].ntid.toLowerCase()===myNt){rd=latest.reps[i];break;}}
-  var c=calcRep(rd);
+  var c=calcRepFor(rd,latest);
   var voiceRate=c.voice.idx>=0?r.vt[c.voice.idx].pay:0;
   // Lines to next voice tier
   var nextV=null;for(var vi=0;vi<r.vt.length;vi++){if(r.vt[vi].min>c.voice.lines){nextV=r.vt[vi];break;}}
@@ -1453,7 +1809,7 @@ function renderMyTier(){
   var rows='';
   for(var w=0;w<mine.length;w++){var wk=mine[w];var wr=null;
     for(var q=0;q<wk.reps.length;q++){if(wk.reps[q].ntid.toLowerCase()===myNt){wr=wk.reps[q];break;}}
-    var wc=calcRep(wr);var wRate=wc.voice.idx>=0?r.vt[wc.voice.idx].pay:0;
+    var wc=calcRepFor(wr,wk);var wRate=wc.voice.idx>=0?r.vt[wc.voice.idx].pay:0;
     rows+='<tr><td style="white-space:nowrap">'+fmtR(wk.weekStart,wk.weekEnd)+'</td>'+
       '<td>'+tb(wc.voice.tier)+'</td><td class="amt">'+wc.voice.lines+'</td>'+
       '<td class="amt">'+(wRate>0?'$'+wRate:'\u2014')+'</td>'+
@@ -1693,7 +2049,7 @@ function renderTier(){
   weeks.sort(function(a,b){return new Date(b.weekStart)-new Date(a.weekStart);});
   for(var w=0;w<weeks.length;w++){var wk=weeks[w];if(wf!=='all'&&wk.weekStart!==wf)continue;
     for(var r=0;r<wk.reps.length;r++){var rep=wk.reps[r];if(cf!=='all'&&liveCoach(rep)!==cf)continue;
-      var c=calcRep(rep);if(cat==='voice'&&c.voice.tier==='No Tier')continue;if(cat==='acc'&&c.acc.tier==='No Tier')continue;
+      var c=calcRepFor(rep,wk);if(cat==='voice'&&c.voice.tier==='No Tier')continue;if(cat==='acc'&&c.acc.tier==='No Tier')continue;
       if(df==='decel'&&!c.voice.decel)continue;
       if(c.voice.decel)decelCount++;
       var flag=c.voice.tier==='No Tier'&&c.acc.tier==='No Tier'?'<span style="color:var(--red);font-weight:700">\uD83D\uDD34 BOTH</span>':c.voice.tier==='No Tier'?'<span style="color:var(--red);font-weight:700">\uD83D\uDD34 ACTS</span>':c.acc.tier==='No Tier'?'<span style="color:var(--red);font-weight:700">\uD83D\uDD34 ACC</span>':'<span style="color:var(--green);font-weight:700">\u2705</span>';
@@ -1863,8 +2219,58 @@ function renderRules(){
       '<div class="rr"><label>Decel Factor (0\u20131)</label><input type="number" id="r-df" value="'+r.df+'" min="0" max="1" step="0.1"></div></div>'+
     '<div class="rb"><h4>Chargeback</h4>'+
       '<div class="rr"><label>Flag Threshold ($)</label><input type="number" id="r-cbf" value="'+r.cbFlag+'" min="0" step="1"></div></div>'+
+    buildPromoManager()+
     buildCoachManager()+
     buildCoachEmailEditor();
+}
+// ═══ RATE PROMOTIONS (CEO date-range rate changes) ═══
+function buildPromoManager(){
+  var ps=getPromos();var rows='';
+  var rateOpts=[['mim','MIM $/line'],['voice','Voice $/act'],['upgrade','Upgrade $/each'],['hsi','HSI $/each'],['bts','BTS $/each'],['acc','Accessory % (whole week)']];
+  for(var i=0;i<ps.length;i++){var p=ps[i];
+    var optHtml='';for(var o=0;o<rateOpts.length;o++){optHtml+='<option value="'+rateOpts[o][0]+'"'+(p.rate===rateOpts[o][0]?' selected':'')+'>'+rateOpts[o][1]+'</option>';}
+    rows+='<div style="border:1px solid var(--gl);border-radius:8px;padding:10px;margin-bottom:8px;background:#fff">'+
+      '<div class="rr" style="gap:6px;margin-bottom:6px"><input type="text" id="pm-name-'+i+'" value="'+esc(p.name)+'" placeholder="Promo name" style="flex:2;text-align:left">'+
+      '<select id="pm-rate-'+i+'" style="flex:1">'+optHtml+'</select></div>'+
+      '<div class="rr" style="gap:6px"><label style="flex:0 0 auto">Value</label><input type="number" id="pm-val-'+i+'" value="'+p.value+'" step="0.5" min="0" style="flex:1">'+
+      '<label style="flex:0 0 auto">From</label><input type="date" id="pm-start-'+i+'" value="'+p.start+'" style="flex:1">'+
+      '<label style="flex:0 0 auto">To</label><input type="date" id="pm-end-'+i+'" value="'+p.end+'" style="flex:1">'+
+      '<button class="btn btn-d btn-sm" onclick="removePromo(\''+p.id+'\')">\u2715</button></div></div>';
+  }
+  return '<div class="rb" style="grid-column:1/-1"><h4>Rate Promotions (CEO date-range changes)</h4>'+
+    '<p style="font-size:11px;color:var(--gray);margin-bottom:10px">Temporary rate changes for a date range \u2014 e.g. MIM $10\u2192$15 for 8/14\u20138/16. For per-unit rates, enter how many units fall in the window on each rep (in their Edit/Correct panel or the Promo Entry grid). Accessory promos bump the whole week\'s %. Saved with SAVE RULES.</p>'+
+    rows+
+    '<button class="btn btn-s btn-sm" onclick="addPromo()">+ Add Promotion</button>'+
+    (ps.length?' <button class="btn btn-pu btn-sm" onclick="navTo(\'promoentry\')">Open Promo Entry Grid \u2192</button>':'')+
+    '</div>';
+}
+function addPromo(){
+  var ps=getPromos();
+  var today=new Date().toISOString().substring(0,10);
+  ps.push({id:'promo_'+Date.now(),name:'New Promo',rate:'mim',value:15,start:today,end:today});
+  savePromos(ps);renderRules();
+}
+function removePromo(id){
+  var ps=getPromos().filter(function(p){return p.id!==id;});
+  savePromos(ps);
+  // also clear any promo-unit entries for this promo
+  var u=getPromoUnits();var changed=false;for(var k in u){if(k.split('|')[2]===id){delete u[k];changed=true;}}if(changed)sv(SK.promounits,u);
+  renderRules();
+  showToast('Promotion removed.');
+}
+// Read promo edits from the rules form (called inside saveRules)
+function readPromosFromForm(){
+  var ps=getPromos();var out=[];
+  for(var i=0;i<ps.length;i++){
+    var nEl=document.getElementById('pm-name-'+i);if(!nEl)continue;
+    out.push({id:ps[i].id,
+      name:(nEl.value||'').trim()||'Promo',
+      rate:document.getElementById('pm-rate-'+i).value,
+      value:parseFloat(document.getElementById('pm-val-'+i).value)||0,
+      start:document.getElementById('pm-start-'+i).value,
+      end:document.getElementById('pm-end-'+i).value});
+  }
+  savePromos(out);
 }
 function buildCoachManager(){
   var cs=getEditableCoaches();var rows='';
@@ -1963,6 +2369,7 @@ function saveCoachEmails(){
 function saveRules(){
   saveCoachList();
   saveCoachEmails();
+  readPromosFromForm();
   var r=getRules();
   for(var i=0;i<r.vt.length;i++){r.vt[i].pay=parseFloat(document.getElementById('vtp-'+i).value)||0;r.vt[i].min=parseInt(document.getElementById('vtm-'+i).value)||0;}
   for(var k=0;k<r.at.length;k++)r.at[k].pct=parseFloat(document.getElementById('atp-'+k).value)||0;
@@ -2082,7 +2489,7 @@ function tierLabel(t){
 // Draw one rep's slip onto the CURRENT page of doc. Returns nothing.
 function drawSlip(doc,rep,week){
   var PW=612,PH=792,M=40,y=M;var r=getRules();
-  var c=calcRep(rep);
+  var c=calcRepFor(rep,week);
   var cbd=cbForWeek(rep.ntid,week.weekStart);var net=Math.max(0,c.weeklyBonus-cbd.total);
   doc.setFillColor(74,27,92);doc.rect(M,y,PW-M*2,48,'F');
   doc.setTextColor(255,255,255);doc.setFont('helvetica','bold');doc.setFontSize(22);doc.text('EDGELINK',M+12,y+28);
@@ -2104,11 +2511,15 @@ function drawSlip(doc,rep,week){
   doc.setFillColor(74,27,92);doc.rect(M,y,PW-M*2,16,'F');
   doc.setTextColor(255,255,255);doc.setFont('helvetica','bold');doc.setFontSize(9);doc.text('WEEKLY BONUS',M+6,y+12);y+=18;
   var pvp=c.voice.idx>=0?r.vt[c.voice.idx].pay:0;
+  var slipDesc=function(split,total,base,unit){
+    if(split&&split.promoUnits>0)return split.normalUnits+unit+' x $'+split.normalRate+' + '+split.promoUnits+' x $'+split.promoRate;
+    return total+unit+' x $'+base;
+  };
   var bRows=[
-    ['Voice ('+tierLabel(c.voice.tier)+')',Math.max(0,rep.voice_acts||0)+' acts x $'+pvp,fmt(c.voice.payout)],
-    ['MIM',(rep.mim_acts||0)+' lines x $'+r.mpp,fmt(c.mim)],
+    ['Voice ('+tierLabel(c.voice.tier)+')',slipDesc(c.voice.promoSplit,Math.max(0,rep.voice_acts||0),pvp,' acts'),fmt(c.voice.payout)],
+    ['MIM',slipDesc(c.mimDetail&&c.mimDetail.promoSplit,(rep.mim_acts||0),r.mpp,' lines'),fmt(c.mim)],
     ['Accessories',tierLabel(c.acc.tier)+' - '+c.acc.pct+'% of '+fmt(rep.totaccessoryprofit),fmt(c.acc.payout)],
-    ['Upgrades',(rep.upgrade_count||0)+' x $'+r.upg,fmt(c.upg)]
+    ['Upgrades',slipDesc(c.upgDetail&&c.upgDetail.promoSplit,(rep.upgrade_count||0),r.upg,''),fmt(c.upg)]
   ];
   doc.setFontSize(9);
   var lowTier=(c.voice.tier==='T1'||c.voice.tier==='No Tier');
@@ -2119,6 +2530,19 @@ function drawSlip(doc,rep,week){
     if(row===0&&lowTier){doc.setTextColor(200,0,0);}else{doc.setTextColor(30,30,30);}
     doc.setFont('helvetica','normal');doc.text(bRows[row][0],CX[0]+4,y+12);doc.text(bRows[row][1],CX[1],y+12);
     doc.setFont('helvetica','bold');doc.text(bRows[row][2],CX[2],y+12);y+=17;
+  }
+  // Manual correction rows
+  if(c.corrected&&c.correction&&c.correction.type==='fields'){
+    doc.setFillColor(250,247,252);doc.rect(M,y,PW-M*2,15,'F');
+    doc.setTextColor(122,44,142);doc.setFont('helvetica','italic');doc.setFontSize(8);
+    var fr='Manual field correction: '+(c.correction.reason||'');if(fr.length>60)fr=fr.substring(0,57)+'...';
+    doc.text(fr,CX[0]+4,y+11);y+=16;
+  }
+  if(c.corrected&&c.adjustment!==undefined){
+    doc.setFillColor(250,247,252);doc.rect(M,y,PW-M*2,16,'F');
+    doc.setTextColor(122,44,142);doc.setFont('helvetica','bold');doc.setFontSize(9);
+    var ar2='Manual Adjustment'+(c.correction&&c.correction.reason?': '+c.correction.reason:'');if(ar2.length>52)ar2=ar2.substring(0,49)+'...';
+    doc.text(ar2,CX[0]+4,y+12);doc.text((c.adjustment>=0?'+':'')+fmt(c.adjustment),CX[2],y+12);y+=17;
   }
   doc.setFillColor(240,240,245);doc.rect(M,y,PW-M*2,20,'F');
   doc.setTextColor(74,27,92);doc.setFont('helvetica','bold');doc.setFontSize(11);
@@ -2171,7 +2595,7 @@ function drawSlip(doc,rep,week){
     var wkm=allWeeks[mw];if(wkm.weekStart.substring(0,7)!==slipMonth)continue;
     for(var mr=0;mr<wkm.reps.length;mr++){
       if(wkm.reps[mr].ntid.toLowerCase()!==rep.ntid.toLowerCase())continue;
-      mtdBonus+=calcRep(wkm.reps[mr]).weeklyBonus;
+      mtdBonus+=calcRepFor(wkm.reps[mr],wkm).weeklyBonus;
       mtdCB+=cbForWeek(rep.ntid,wkm.weekStart).total;
     }
   }
@@ -2492,7 +2916,7 @@ function renderCoachAll(){
       var rep=reps[i];
       if(cf!=='all'&&liveCoach(rep)!==cf)continue;
       if(repF!=='all'&&rep.ntid.toLowerCase()!==repF.toLowerCase())continue;
-      var c=calcRep(rep);var cbd=cbForWeek(rep.ntid,wk.weekStart);var net=Math.max(0,c.weeklyBonus-cbd.total);
+      var c=calcRepFor(rep,wk);var cbd=cbForWeek(rep.ntid,wk.weekStart);var net=Math.max(0,c.weeklyBonus-cbd.total);
       tB+=c.weeklyBonus;tA+=c.arcade;tC+=cbd.total;tN+=net;cnt++;
       rows+='<tr style="cursor:pointer" onclick="coachViewRep(\''+esc(rep.ntid)+'\',\''+wk.weekStart+'\')" title="Tap to view slip">'+
         (multi?'<td style="font-size:11px;color:var(--gray);white-space:nowrap">'+fmtR(wk.weekStart,wk.weekEnd)+'</td>':'')+
@@ -2534,7 +2958,7 @@ function renderCoachTier(){
   weeks.sort(function(a,b){return new Date(b.weekStart)-new Date(a.weekStart);});
   for(var w=0;w<weeks.length;w++){var wk=weeks[w];if(wf!=='all'&&wk.weekStart!==wf)continue;
     for(var r=0;r<wk.reps.length;r++){var rep=wk.reps[r];if(cf!=='all'&&liveCoach(rep)!==cf)continue;
-      var c=calcRep(rep);
+      var c=calcRepFor(rep,wk);
       var flag=c.voice.tier==='No Tier'&&c.acc.tier==='No Tier'?'<span style="color:var(--red);font-weight:700">\uD83D\uDD34 BOTH</span>':c.voice.tier==='No Tier'?'<span style="color:var(--red);font-weight:700">\uD83D\uDD34 ACTS</span>':c.acc.tier==='No Tier'?'<span style="color:var(--red);font-weight:700">\uD83D\uDD34 ACC</span>':'<span style="color:var(--green);font-weight:700">\u2705</span>';
       rows+='<tr><td><strong>'+esc(rep.full_name)+'</strong></td><td>'+esc(liveStore(rep)||'\u2014')+'</td><td style="font-size:11px;color:var(--gray)">'+fmtR(wk.weekStart,wk.weekEnd)+'</td><td>'+tb(c.voice.tier)+'</td><td>'+c.voice.lines+'</td><td>'+tb(c.acc.tier)+'</td><td>'+fmt(rep.totaccessoryprofit)+'</td><td>'+flag+'</td></tr>';
     }
@@ -2563,7 +2987,7 @@ function payoutRows(){
   var wk=getLatestWeek();if(!wk)return null;
   var r=getRules();var rows=[];
   for(var i=0;i<wk.reps.length;i++){
-    var rep=wk.reps[i];var c=calcRep(rep);var cbd=cbForWeek(rep.ntid,wk.weekStart);
+    var rep=wk.reps[i];var c=calcRepFor(rep,wk);var cbd=cbForWeek(rep.ntid,wk.weekStart);
     var voiceRate=c.voice.idx>=0?r.vt[c.voice.idx].pay:0;
     rows.push({name:rep.full_name,ntid:rep.ntid,coach:liveCoach(rep),store:liveStore(rep),
       // quantities
@@ -2849,7 +3273,7 @@ function tierRows(){
   weeks.sort(function(a,b){return new Date(b.weekStart)-new Date(a.weekStart);});
   for(var w=0;w<weeks.length;w++){var wk=weeks[w];if(wf!=='all'&&wk.weekStart!==wf)continue;
     for(var r=0;r<wk.reps.length;r++){var rep=wk.reps[r];if(cf!=='all'&&liveCoach(rep)!==cf)continue;
-      var c=calcRep(rep);
+      var c=calcRepFor(rep,wk);
       if(cat==='voice'&&c.voice.tier==='No Tier')continue;
       if(cat==='acc'&&c.acc.tier==='No Tier')continue;
       if(df==='decel'&&!c.voice.decel)continue;
