@@ -1154,11 +1154,18 @@ function allocateAll(ntid){
   // combined weekly total. Each auto CB carries a running 'remaining' balance and a
   // preferred week order (nearest to its start week, forward first then backward).
   var thresh=getRules().cbCapThresh;  // combined weekly auto CB at/under this = take in full
+  // Auto CBs deduct from the LATEST loaded week forward. An old/frozen start week is
+  // ignored (never deduct from weeks before the most recent one). A start week set in
+  // the FUTURE is still honored (deliberately deferred). So effective start = the later
+  // of the CB's start and the latest loaded week.
+  // "Latest" here means the latest week WITH real data (placeholders don't count),
+  // so empty future weeks never push the start past a real payout week.
+  var latestWs='0000-01-01';var _allw=getWeeks();
+  for(var lw0=0;lw0<_allw.length;lw0++){if(_allw[lw0].reps&&_allw[lw0].reps.length>0&&_allw[lw0].weekStart>latestWs)latestWs=_allw[lw0].weekStart;}
   var autos=[];
   for(var a=0;a<mine.length;a++){var cbA=mine[a];if(cbA.mode==='manual')continue;
-    var startWk=cbA.startWeek||cbA.date||'0000-01-01';
-    // FORWARD ONLY: chargebacks deduct from the start week onward. Never go back into
-    // an earlier (already-paid) week.
+    var rawStart=cbA.startWeek||cbA.date||'0000-01-01';
+    var startWk=(rawStart>latestWs)?rawStart:latestWs; // never earlier than the latest week
     var after=[];
     for(var w=0;w<pw.length;w++){if(pw[w].weekStart>=startWk)after.push(pw[w].weekStart);}
     after.sort();
@@ -1576,6 +1583,7 @@ function mergeAndSave(pbi,emp,csv,ws,we,stEl,ret){
   document.getElementById('sw').textContent=fmtR(ws,we);
   var retCount=0;for(var rc0=0;rc0<reps.length;rc0++){if(reps[rc0].retention!==null&&reps[rc0].retention!==undefined)retCount++;}
   stEl.textContent='\u2705 Processed '+reps.length+' reps for '+fmtR(ws,we)+(zeroAdded>0?' ('+zeroAdded+' from Emp Perf only)':'')+(ret?' \u2014 retention loaded for '+retCount+' rep(s)':' \u2014 no retention file (decelerator off)')+(newReps>0?' \u2014 \u26A0\uFE0F '+newReps+' NEW rep(s) auto-added to roster.':'');
+  ensureFutureWeeksForBalances();
   renderWkTable();showToast(newReps>0?'Week loaded! \u26A0\uFE0F '+newReps+' new rep(s) need coach/store assignment.':'Week loaded!');fillExportWk();fillExportRep();
 }
 
@@ -2376,6 +2384,42 @@ function createPlaceholderWeek(ws,we){
   weeks.push({weekStart:ws,weekEnd:we,reps:[],loadedAt:null,grossBonus:0,arcadeTotal:0,placeholder:true});
   sv(SK.weeks,weeks);
   return true;
+}
+// Auto-generate future weeks so lingering auto chargeback balances always have a slot
+// to roll into. Adds empty placeholder weeks until every rep's outstanding balance could
+// be absorbed, capped so we never create an unbounded number of weeks.
+function ensureFutureWeeksForBalances(){
+  var cbs=getCBs();
+  // Any lingering auto balances?
+  var maxBalance=0;var totalLingering=0;
+  var seen={};
+  for(var i=0;i<cbs.length;i++){var cb=cbs[i];if(cb.mode==='manual')continue;
+    var bal=cbBal(cb);if(bal.balance>0.001){totalLingering+=bal.balance;if(bal.balance>maxBalance)maxBalance=bal.balance;}
+  }
+  if(totalLingering<=0.001)return 0;
+  // Cap: generate at most 12 future weeks per top-up so a stuck balance (rep never earns)
+  // doesn't create infinite weeks. One or two is the usual case.
+  var added=0;var guard=0;
+  while(guard++<12){
+    // Is there any EMPTY future week already available beyond the latest with data?
+    var weeks=getWeeks();
+    var latestData=null;
+    for(var w=0;w<weeks.length;w++){if(weeks[w].reps&&weeks[w].reps.length>0){if(!latestData||weeks[w].weekStart>latestData)latestData=weeks[w].weekStart;}}
+    if(!latestData){var lw=getLatestWeek();latestData=lw?lw.weekStart:new Date().toISOString().substring(0,10);}
+    // Count empty placeholder weeks after the latest data week
+    var emptyFuture=0;
+    for(var e=0;e<weeks.length;e++){if(weeks[e].weekStart>latestData&&(!weeks[e].reps||weeks[e].reps.length===0))emptyFuture++;}
+    // Recompute lingering after any adds (placeholders are $0 so balance won't drop, but
+    // this keeps at least a couple of slots ready).
+    if(emptyFuture>=2)break; // keep ~2 empty weeks queued
+    // Create the next week after the furthest existing week
+    var furthest=latestData;
+    for(var f=0;f<weeks.length;f++){if(weeks[f].weekStart>furthest)furthest=weeks[f].weekStart;}
+    var ns=nextMonday(furthest);var ne=addDays(ns,6);
+    if(weekExists(ns))break;
+    createPlaceholderWeek(ns,ne);added++;
+  }
+  return added;
 }
 function addOneFutureWeek(){
   var st=document.getElementById('fw-status');
