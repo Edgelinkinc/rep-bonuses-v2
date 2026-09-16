@@ -403,7 +403,7 @@ tbody td{padding:10px 12px;white-space:nowrap}
           <div class="sg" id="cb-stats"></div>
           <div class="tw"><table><thead><tr>
             <th>Rep</th><th>NTID</th><th>Coach</th><th>Category</th><th>Date</th>
-            <th>Owed</th><th>Type</th><th>Deducted</th><th>Balance</th><th>Status</th><th></th>
+            <th>Owed</th><th>Mode</th><th>Collected</th><th>Balance</th><th>Status</th><th></th>
           </tr></thead><tbody id="cb-body"></tbody></table></div>
         </div>
         <div class="card">
@@ -588,6 +588,23 @@ tbody td{padding:10px 12px;white-space:nowrap}
     <div class="fg"><label>Deduct from Week</label><select id="flag-wk"></select></div>
     <div id="flag-preview" style="max-height:240px;overflow:auto;border:1px solid var(--gl);border-radius:8px;margin:10px 0;font-size:12px"></div>
     <div class="mf"><button class="btn btn-s" onclick="cm('mo-flag')">Cancel</button><button class="btn btn-p" onclick="commitFlagged()">IMPORT CHARGEBACKS</button></div>
+  </div>
+</div>
+
+<div class="mo" id="mo-sched">
+  <div class="md" style="max-width:640px">
+    <h3>Chargeback Schedule</h3>
+    <div id="sched-info" style="font-size:13px;color:var(--gray);margin-bottom:12px"></div>
+    <div style="display:flex;gap:10px;margin-bottom:14px">
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;cursor:pointer"><input type="radio" name="sched-mode" value="auto" onchange="schedModeChange()"> Auto rollover</label>
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;cursor:pointer"><input type="radio" name="sched-mode" value="manual" onchange="schedModeChange()"> Manual distribution</label>
+    </div>
+    <div id="sched-auto-note" style="font-size:12px;color:var(--gray);background:#f0f8f0;border-radius:8px;padding:10px 12px;margin-bottom:12px">Auto: takes what fits from each week's payout (never below $0), rolls the rest to the next week that has a payout. Recalculates automatically as new weeks load.</div>
+    <div id="sched-manual" style="display:none">
+      <div style="font-size:12px;color:var(--gray);margin-bottom:8px">Enter the amount to deduct from each week. Leave blank or 0 to skip a week. The rep's bonus for each week is shown so you don't over-deduct.</div>
+      <div id="sched-weeks" style="max-height:280px;overflow:auto"></div>
+    </div>
+    <div class="mf"><button class="btn btn-s" onclick="cm('mo-sched')">Cancel</button><button class="btn btn-p" onclick="saveSchedule()">SAVE SCHEDULE</button></div>
   </div>
 </div>
 
@@ -1046,25 +1063,108 @@ function _origCalcRep(rep){
   var ar=calcArcade(rep.hsi_acts,rep.bts_acts);var ug=calcUpg(rep.upgrade_count);
   return{voice:v,mim:m,acc:ac,arc:ar,upg:ug,weeklyBonus:v.payout+m+ac.payout+ug,arcade:ar.total};
 }
-function cbForWeek(ntid,weekStart){
-  var cbs=getCBs();var total=0;var items=[];
-  for(var i=0;i<cbs.length;i++){
-    var cb=cbs[i];if(cb.ntid.toLowerCase()!==ntid.toLowerCase())continue;
-    for(var j=0;j<cb.payments.length;j++){
-      if(cb.payments[j].weekStart===weekStart){total+=cb.payments[j].amount;items.push({category:cb.category,date:cb.date,amount:cb.payments[j].amount,notes:cb.notes});}
+// Gross weekly bonus for a rep in a given week (BEFORE chargebacks). Used by the
+// rollover allocator so chargeback math never recurses into itself.
+function grossBonusForWeek(ntid,weekStart){
+  var wks=getWeeks();
+  for(var i=0;i<wks.length;i++){
+    if(wks[i].weekStart!==weekStart)continue;
+    for(var r=0;r<wks[i].reps.length;r++){
+      if(wks[i].reps[r].ntid.toLowerCase()===ntid.toLowerCase()){
+        return calcRepFor(wks[i].reps[r],wks[i]).weeklyBonus;
+      }
     }
+  }
+  return 0;
+}
+// The ordered list of this rep's weeks (ascending) that actually have a payout > 0.
+function repPayoutWeeks(ntid){
+  var wks=getWeeks().slice().sort(function(a,b){return new Date(a.weekStart)-new Date(b.weekStart);});
+  var out=[];
+  for(var i=0;i<wks.length;i++){
+    var g=grossBonusForWeek(ntid,wks[i].weekStart);
+    if(g>0.001)out.push({weekStart:wks[i].weekStart,gross:g});
+  }
+  return out;
+}
+// AUTO chargeback: allocate the balance across the rep's payout-weeks starting at
+// (or after) the chargeback's start week. Takes what fits each week, rolls the rest
+// to the next week that has a payout. Returns {byWeek:{weekStart:amt}, collected, remaining}.
+function autoAllocate(cb){
+  var startWk=cb.startWeek||cb.date||'0000-01-01';
+  var pw=repPayoutWeeks(cb.ntid);
+  var remaining=cb.totalOwed;var byWeek={};var collected=0;
+  // Track how much of each week's bonus is already consumed by OTHER auto chargebacks.
+  var consumed=cb._consumedMap||{};
+  for(var i=0;i<pw.length;i++){
+    if(remaining<=0.001)break;
+    if(pw[i].weekStart<startWk)continue; // only weeks on/after the start week
+    var avail=pw[i].gross-(consumed[pw[i].weekStart]||0);
+    if(avail<=0.001)continue;
+    var take=Math.min(avail,remaining);
+    byWeek[pw[i].weekStart]=take;remaining-=take;collected+=take;
+  }
+  return{byWeek:byWeek,collected:collected,remaining:remaining};
+}
+// Allocate ALL of a rep's chargebacks across ALL their payout-weeks at once,
+// so multiple auto CBs stack (each week's bonus is consumed once, in CB order).
+// Manual CBs consume their scheduled amounts first; auto CBs fill what's left.
+// Returns {byWeek:{weekStart:[{cb,amount}]}}.
+function allocateAll(ntid){
+  var cbs=getCBs();var mine=[];
+  for(var i=0;i<cbs.length;i++){if(cbs[i].ntid.toLowerCase()===ntid.toLowerCase())mine.push(cbs[i]);}
+  var pw=repPayoutWeeks(ntid); // ascending, payout>0
+  var consumed={}; // weekStart -> $ already taken
+  var result={};   // weekStart -> [{cb,amount}]
+  function push(ws,cb,amt){if(!result[ws])result[ws]=[];result[ws].push({cb:cb,amount:amt});consumed[ws]=(consumed[ws]||0)+amt;}
+  // Manual first (fixed schedule), so auto rollovers fill remaining room.
+  for(var m=0;m<mine.length;m++){var cb=mine[m];if(cb.mode==='manual'&&cb.payments){
+    for(var p=0;p<cb.payments.length;p++){push(cb.payments[p].weekStart,cb,cb.payments[p].amount);}
+  }}
+  // Auto next, in creation order.
+  for(var a=0;a<mine.length;a++){var cbA=mine[a];if(cbA.mode==='manual')continue;
+    var remaining=cbA.totalOwed;var startWk=cbA.startWeek||cbA.date||'0000-01-01';
+    for(var w=0;w<pw.length;w++){
+      if(remaining<=0.001)break;
+      if(pw[w].weekStart<startWk)continue;
+      var avail=pw[w].gross-(consumed[pw[w].weekStart]||0);
+      if(avail<=0.001)continue;
+      var take=Math.min(avail,remaining);
+      push(pw[w].weekStart,cbA,take);remaining-=take;
+    }
+  }
+  return result;
+}
+// Total chargebacks hitting a rep in a given week, with per-item detail.
+function cbForWeek(ntid,weekStart){
+  var alloc=allocateAll(ntid);var list=alloc[weekStart]||[];
+  var total=0;var items=[];
+  for(var i=0;i<list.length;i++){
+    if(list[i].amount<=0.001)continue;
+    total+=list[i].amount;
+    items.push({category:list[i].cb.category,date:list[i].cb.date,amount:list[i].amount,notes:list[i].cb.notes,
+      rolled:(list[i].cb.mode!=='manual'&&Math.abs(list[i].amount-list[i].cb.totalOwed)>0.01)});
   }
   return{total:total,items:items};
 }
-function cbBal(cb){var p=0;for(var i=0;i<cb.payments.length;i++)p+=cb.payments[i].amount;return{paid:p,balance:cb.totalOwed-p,status:p<=0?'open':(p>=cb.totalOwed-0.001?'closed':'partial')};}
-// Auto-deduct: if amount is at or under the flag threshold, apply the full deduction
-// to the latest loaded week immediately. Returns true if auto-deducted.
+// Balance across ALL loaded weeks (how much has actually been collected so far).
+function cbSig(cb){return (cb.ntid||'')+'|'+(cb.category||'')+'|'+(cb.date||'')+'|'+(cb.totalOwed||0)+'|'+(cb.createdAt||'');}
+function cbBal(cb){
+  if(cb.mode==='manual'||(cb.payments&&cb.payments.length&&cb.mode!=='auto')){
+    var p=0;for(var i=0;i<cb.payments.length;i++)p+=cb.payments[i].amount;
+    return{paid:p,balance:cb.totalOwed-p,status:p<=0?'open':(p>=cb.totalOwed-0.001?'closed':'partial')};
+  }
+  // Auto: collected = sum of this CB's allocations across all weeks (cross-CB aware).
+  var sig=cbSig(cb);var alloc=allocateAll(cb.ntid);var paid=0;
+  for(var ws in alloc){for(var i=0;i<alloc[ws].length;i++){if(cbSig(alloc[ws][i].cb)===sig)paid+=alloc[ws][i].amount;}}
+  var balance=cb.totalOwed-paid;
+  return{paid:paid,balance:balance,status:paid<=0.001?'open':(balance<=0.001?'closed':'partial')};
+}
+// New chargebacks default to AUTO rollover starting from the latest week (or their date).
 function autoDeductCB(cb){
-  var r=getRules();
-  if(cb.totalOwed>r.cbFlag)return false;
-  var wk=getLatestWeek();
-  if(!wk)return false;
-  cb.payments.push({amount:cb.totalOwed,weekStart:wk.weekStart,appliedAt:new Date().toISOString(),auto:true});
+  // In the live-rollover model nothing is pre-stamped; auto allocation handles it.
+  if(cb.mode===undefined)cb.mode='auto';
+  if(!cb.startWeek){var wk=getLatestWeek();cb.startWeek=wk?wk.weekStart:cb.date;}
   return true;
 }
 
@@ -1667,6 +1767,7 @@ function promoLabel(split,totalUnits,baseRate){
   }
   return '('+totalUnits+' \u00D7 $'+baseRate+')';
 }
+function monthName(ym){var mo=['January','February','March','April','May','June','July','August','September','October','November','December'];var p=ym.split('-');return mo[parseInt(p[1])-1]+' '+p[0];}
 function repBreakdownHTML(rd,wk){
   var c=calcRepFor(rd,wk);var cbd=cbForWeek(rd.ntid,wk.weekStart);var net=Math.max(0,c.weeklyBonus-cbd.total);
   var r=getRules();var tmax=r.vt[r.vt.length-1].min+10;var pct=Math.min(100,(c.voice.lines/tmax)*100);
@@ -1705,18 +1806,21 @@ function repBreakdownHTML(rd,wk){
     (cbL?cbL:'<div class="br cb"><span class="bl" style="color:var(--gray)">No chargebacks this period</span><span class="bv">-'+fmt(0)+'</span></div>')+
     '<div class="br cb"><span class="bl" style="font-weight:700">Total Chargebacks</span><span class="bv">-'+fmt(cbd.total)+'</span></div>'+
     '<div class="br net"><span class="bl">NET WEEKLY PAYOUT</span><span class="bv">'+fmt(net)+'</span></div>';
-  // Monthly
-  var weeks=getWeeks();weeks.sort(function(a,b){return new Date(a.weekStart)-new Date(b.weekStart);});
-  var mB=0,mC=0,wR='';
+  // Monthly \u2014 ONLY the weeks in the slip's calendar month; MONTHLY NET is bonus-only
+  // (chargebacks are deducted at the WEEKLY level, not from the monthly total).
+  var slipMonth=wk.weekStart.substring(0,7); // YYYY-MM
+  var weeks=getWeeks().filter(function(w){return w.weekStart.substring(0,7)===slipMonth;});
+  weeks.sort(function(a,b){return new Date(a.weekStart)-new Date(b.weekStart);});
+  var mB=0,wR='';
   for(var w=0;w<weeks.length;w++){var wk2=weeks[w];for(var rr=0;rr<wk2.reps.length;rr++){
     if(wk2.reps[rr].ntid.toLowerCase()!==rd.ntid.toLowerCase())continue;
     var wc=calcRepFor(wk2.reps[rr],wk2);var wCB=cbForWeek(wk2.reps[rr].ntid,wk2.weekStart);
-    mB+=wc.weeklyBonus;mC+=wCB.total;
-    wR+='<div class="br"><span class="bl">Week of '+fmtD(wk2.weekStart)+'</span><span class="bv">'+fmt(Math.max(0,wc.weeklyBonus-wCB.total))+'</span></div>';
+    mB+=wc.weeklyBonus;
+    wR+='<div class="br"><span class="bl">Week of '+fmtD(wk2.weekStart)+(wCB.total>0.001?' <span style="color:var(--red);font-size:11px">(\u2212'+fmt(wCB.total)+' CB)</span>':'')+'</span><span class="bv">'+fmt(Math.max(0,wc.weeklyBonus-wCB.total))+'</span></div>';
   }}
-  var monthly=wR+'<div class="br tot"><span class="bl">MONTHLY BONUS GROSS</span><span class="bv">'+fmt(mB)+'</span></div>'+
-    '<div class="br cb"><span class="bl" style="font-weight:700">Total Monthly Chargebacks</span><span class="bv">-'+fmt(mC)+'</span></div>'+
-    '<div class="br net"><span class="bl">MONTHLY NET</span><span class="bv">'+fmt(Math.max(0,mB-mC))+'</span></div>';
+  var monthly=wR+'<div class="br tot"><span class="bl">MONTHLY BONUS ('+monthName(slipMonth)+')</span><span class="bv">'+fmt(mB)+'</span></div>'+
+    '<div class="br net"><span class="bl">MONTHLY NET (bonus only)</span><span class="bv">'+fmt(mB)+'</span></div>'+
+    '<div style="font-size:10px;color:var(--gray);padding:4px 0 0">Chargebacks are deducted from each week\'s payout, shown above \u2014 not from the monthly total.</div>';
   return {stats:stats,statsWrapped:statsWrapped,decel:decelBanner,breakdown:breakdown,monthly:monthly};
 }
 
@@ -1872,16 +1976,16 @@ function renderCBT(){
     var rr=getRosterRep(cb.ntid);var coach=cb.coach||(rr?rr.coach:'TBD');
     if(cf!=='all'&&coach!==cf)continue;
     if(srch&&cb.ntid.indexOf(srch)<0&&(cb.repName||'').toLowerCase().indexOf(srch)<0)continue;
-    var dtype=cb.pct?'% ('+cb.pct+'%)':'Flat $';
-    var flg=cb.totalOwed>flagT&&!cb.pct?' <span class="flb" style="font-size:10px;padding:2px 6px">\u26A0\uFE0F SET %</span>':'';
+    var isManual=(cb.mode==='manual');
+    var modeBadge=isManual?'<span class="badge" style="background:#e0e7ff;color:#3730a3">MANUAL</span>':'<span class="badge" style="background:#dcfce7;color:#166534">AUTO</span>';
     rows+='<tr><td><strong>'+esc(cb.repName||cb.ntid)+'</strong></td>'+
       '<td style="font-size:11px;color:var(--gray)">'+esc(cb.ntid)+'</td><td>'+esc(coach)+'</td>'+
       '<td><span class="badge bmg">'+esc(cb.category)+'</span></td><td>'+fmtD(cb.date)+'</td>'+
-      '<td class="amt">'+fmt(cb.totalOwed)+'</td><td>'+dtype+flg+'</td>'+
+      '<td class="amt">'+fmt(cb.totalOwed)+'</td><td>'+modeBadge+'</td>'+
       '<td class="amt gr">'+fmt(b.paid)+'</td><td class="amt rd">'+fmt(b.balance)+'</td>'+
       '<td><span class="badge b'+b.status.substring(0,2)+'">'+b.status.toUpperCase()+'</span></td>'+
-      '<td style="display:flex;gap:4px">'+
-        (b.status!=='closed'?'<button class="btn btn-p btn-sm" onclick="openPay('+i+')">Deduct</button>':'<span style="color:var(--green);font-size:11px;font-weight:700">\u2713 Paid</span>')+
+      '<td style="display:flex;gap:4px;flex-wrap:wrap">'+
+        '<button class="btn btn-pu btn-sm" onclick="openSchedule('+i+')">Schedule</button>'+
         '<button class="btn btn-d btn-sm" onclick="delCB('+i+')">Del</button></td></tr>';
   }
   document.getElementById('cb-body').innerHTML=rows||'<tr><td colspan="11" style="text-align:center;color:var(--gray);padding:20px">No chargebacks found.</td></tr>';
@@ -1924,11 +2028,61 @@ function saveCB(){
   if(!repName){var wk=getLatestWeek();if(wk){for(var i=0;i<wk.reps.length;i++){if(wk.reps[i].ntid.toLowerCase()===ntid){repName=wk.reps[i].full_name;break;}}}}
   if(!repName)repName=ntid.toUpperCase();
   var cbs=getCBs();
-  var newCB={ntid:ntid,repName:repName,category:cat,date:date,totalOwed:total,pct:pct,notes:notes,payments:[],createdAt:new Date().toISOString()};
+  var _lw=getLatestWeek();
+  var newCB={ntid:ntid,repName:repName,category:cat,date:date,totalOwed:total,pct:pct,notes:notes,payments:[],mode:'auto',startWeek:_lw?_lw.weekStart:date,createdAt:new Date().toISOString()};
   var autoApplied=autoDeductCB(newCB);
   cbs.push(newCB);
   sv(SK.cb,cbs);cm('mo-cb');renderCBT();
   showToast(autoApplied?'Chargeback added \u2014 '+fmt(total)+' auto-deducted from current week.':'Chargeback added.');
+}
+var _schedIdx=null;
+function openSchedule(idx){
+  _schedIdx=idx;var cb=getCBs()[idx];
+  document.getElementById('sched-info').innerHTML='<strong>'+esc(cb.repName||cb.ntid)+'</strong> \u2014 '+esc(cb.category)+' \u2014 Total Owed: <strong>'+fmt(cb.totalOwed)+'</strong>';
+  var mode=(cb.mode==='manual')?'manual':'auto';
+  var radios=document.getElementsByName('sched-mode');for(var i=0;i<radios.length;i++){radios[i].checked=(radios[i].value===mode);}
+  buildSchedWeeks(cb);
+  schedModeChange();
+  om('mo-sched');
+}
+function schedModeChange(){
+  var mode=getSchedMode();
+  document.getElementById('sched-manual').style.display=(mode==='manual')?'block':'none';
+  document.getElementById('sched-auto-note').style.display=(mode==='auto')?'block':'none';
+}
+function getSchedMode(){var radios=document.getElementsByName('sched-mode');for(var i=0;i<radios.length;i++){if(radios[i].checked)return radios[i].value;}return 'auto';}
+function buildSchedWeeks(cb){
+  var wks=getWeeks().slice().sort(function(a,b){return new Date(a.weekStart)-new Date(b.weekStart);});
+  var h='';
+  // existing manual amounts
+  var existing={};if(cb.payments){for(var p=0;p<cb.payments.length;p++){existing[cb.payments[p].weekStart]=(existing[cb.payments[p].weekStart]||0)+cb.payments[p].amount;}}
+  for(var i=0;i<wks.length;i++){
+    var gross=grossBonusForWeek(cb.ntid,wks[i].weekStart);
+    var val=existing[wks[i].weekStart]||'';
+    h+='<div class="rr" style="gap:8px;align-items:center;margin-bottom:6px">'+
+      '<div style="flex:1;font-size:13px">'+fmtR(wks[i].weekStart,wks[i].weekEnd)+' <span style="color:var(--gray);font-size:11px">(bonus '+fmt(gross)+')</span></div>'+
+      '<input type="number" step="0.01" min="0" class="sched-inp" data-wk="'+wks[i].weekStart+'" value="'+val+'" placeholder="0.00" style="flex:0 0 100px;padding:6px;border:1.5px solid var(--gl);border-radius:6px"></div>';
+  }
+  document.getElementById('sched-weeks').innerHTML=h||'<div style="color:var(--gray);font-size:13px">No weeks loaded yet.</div>';
+}
+function saveSchedule(){
+  var cbs=getCBs();var cb=cbs[_schedIdx];if(!cb)return;
+  var mode=getSchedMode();
+  if(mode==='auto'){
+    cb.mode='auto';
+    // drop any manual payment schedule; auto is computed live
+    cb.payments=cb.payments?cb.payments.filter(function(p){return p.flagged;}):[];
+    if(!cb.startWeek){var lw=getLatestWeek();cb.startWeek=lw?lw.weekStart:cb.date;}
+  } else {
+    cb.mode='manual';
+    var inps=document.querySelectorAll('.sched-inp');var pays=[];var sum=0;
+    for(var i=0;i<inps.length;i++){var amt=parseFloat(inps[i].value)||0;if(amt>0){pays.push({amount:amt,weekStart:inps[i].getAttribute('data-wk'),appliedAt:new Date().toISOString(),auto:false,manual:true});sum+=amt;}}
+    if(sum>cb.totalOwed+0.01){showToast('Scheduled amounts ('+fmt(sum)+') exceed total owed ('+fmt(cb.totalOwed)+').');return;}
+    cb.payments=pays;
+  }
+  sv(SK.cb,cbs);cm('mo-sched');
+  showToast('Schedule saved ('+mode+').');
+  renderCBT();if(typeof renderAH==='function')renderAH();
 }
 function openPay(idx){
   activeCBIdx=idx;var cb=getCBs()[idx];var b=cbBal(cb);
@@ -2047,7 +2201,7 @@ function commitFlagged(){
     // One chargeback per rep, fully deducted from the chosen week
     var cb={ntid:fr.ntid,repName:repName,category:category,date:today,totalOwed:amt,pct:null,
       notes:fr.count+' flagged line'+(fr.count===1?'':'s')+' \u00D7 '+fmt(rate),
-      payments:[{amount:amt,weekStart:ws,appliedAt:new Date().toISOString(),auto:false,flagged:true}],
+      payments:[],mode:'auto',startWeek:ws,
       createdAt:new Date().toISOString(),flaggedImport:true};
     cbs.push(cb);added++;totalAmt+=amt;
   }
@@ -2081,7 +2235,8 @@ function procCBImport(rows){
     var date=normDate(dRaw)||new Date().toISOString().split('T')[0];
     var notes=String(row['Notes']||row['notes']||'').trim();
     if(total>flagT&&!pct)flagged++;
-    var impCB={ntid:ntid,repName:repName,category:cat,date:date,totalOwed:total,pct:pct,notes:notes,payments:[],createdAt:new Date().toISOString()};
+    var _lwi=getLatestWeek();
+    var impCB={ntid:ntid,repName:repName,category:cat,date:date,totalOwed:total,pct:pct,notes:notes,payments:[],mode:'auto',startWeek:_lwi?_lwi.weekStart:date,createdAt:new Date().toISOString()};
     if(autoDeductCB(impCB))autoCount++;
     cbs.push(impCB);
     added++;
@@ -2707,22 +2862,20 @@ function drawSlip(doc,rep,week){
       mtdCB+=cbForWeek(rep.ntid,wkm.weekStart).total;
     }
   }
-  var mtdNet=Math.max(0,mtdBonus-mtdCB);
   y+=4;
   doc.setFillColor(74,27,92);doc.rect(M,y,PW-M*2,16,'F');
   doc.setTextColor(255,255,255);doc.setFont('helvetica','bold');doc.setFontSize(9);
   doc.text('MONTH-TO-DATE SUMMARY ('+slipMonth+')',M+6,y+12);y+=18;
-  var mRows=[['Monthly Bonus Gross',fmt(mtdBonus)],['Total Monthly Chargebacks','-'+fmt(mtdCB)]];
-  for(var mi=0;mi<mRows.length;mi++){
-    doc.setFillColor(mi%2===0?248:255,mi%2===0?248:255,mi%2===0?252:255);doc.rect(M,y,PW-M*2,15,'F');
-    doc.setFont('helvetica','normal');
-    if(mi===1){doc.setTextColor(180,0,0);}else{doc.setTextColor(30,30,30);}
-    doc.text(mRows[mi][0],CX[0]+4,y+11);
-    doc.setFont('helvetica','bold');doc.text(mRows[mi][1],CX[2],y+11);y+=16;
-  }
+  // Bonus-only monthly total. Chargebacks are deducted weekly, not from the month.
+  doc.setFillColor(248,248,252);doc.rect(M,y,PW-M*2,15,'F');
+  doc.setFont('helvetica','normal');doc.setTextColor(30,30,30);
+  doc.text('Monthly Bonus ('+slipMonth+')',CX[0]+4,y+11);
+  doc.setFont('helvetica','bold');doc.text(fmt(mtdBonus),CX[2],y+11);y+=16;
   doc.setFillColor(52,199,89);doc.rect(M,y,PW-M*2,20,'F');
   doc.setTextColor(255,255,255);doc.setFont('helvetica','bold');doc.setFontSize(11);
-  doc.text('MONTHLY NET',CX[0]+4,y+14);doc.text(fmt(mtdNet),CX[2],y+14);y+=26;
+  doc.text('MONTHLY NET (bonus only)',CX[0]+4,y+14);doc.text(fmt(mtdBonus),CX[2],y+14);y+=24;
+  doc.setFont('helvetica','italic');doc.setFontSize(7);doc.setTextColor(130,130,130);
+  doc.text('Chargebacks are deducted from each weekly payout, not from the monthly total.',CX[0]+4,y+8);y+=14;
   doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(150,150,150);
   doc.text('EdgeLink Inc. | hr@edgelincinc.com | 423-747-0429 | 719 Bald Hill Rd, Warwick RI 02886',PW/2,PH-M-8,{align:'center'});
 }
