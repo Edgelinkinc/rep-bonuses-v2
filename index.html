@@ -372,6 +372,24 @@ tbody td{padding:10px 12px;white-space:nowrap}
           <div id="proc-status" style="margin-top:12px;font-size:13px;font-weight:600;color:var(--gray)"></div>
         </div>
         <div class="card">
+          <div class="ct">Create Future Payroll Weeks</div>
+          <p style="font-size:13px;color:var(--gray);margin-bottom:14px">Add empty upcoming weeks so lingering chargebacks have somewhere to roll before reports are uploaded. When you later process reports for these dates, they fill the placeholder automatically (no duplicate).</p>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:end">
+            <div style="display:flex;flex-direction:column;gap:4px">
+              <label style="font-size:12px;font-weight:700;color:var(--gray)">New Week Start (Mon)</label>
+              <input type="date" id="fw-start" style="padding:8px 10px;border:1.5px solid var(--gl);border-radius:8px;font-family:inherit;font-size:13px">
+            </div>
+            <button class="btn btn-s btn-sm" onclick="addOneFutureWeek()">+ Add This Week</button>
+            <div style="width:1px;height:34px;background:var(--gl);margin:0 4px"></div>
+            <div style="display:flex;flex-direction:column;gap:4px">
+              <label style="font-size:12px;font-weight:700;color:var(--gray)"># Weeks to Generate</label>
+              <input type="number" id="fw-count" value="4" min="1" max="26" style="width:80px;padding:8px 10px;border:1.5px solid var(--gl);border-radius:8px;font-family:inherit;font-size:13px">
+            </div>
+            <button class="btn btn-pu btn-sm" onclick="batchFutureWeeks()">Generate Batch (from latest)</button>
+          </div>
+          <div id="fw-status" style="margin-top:10px;font-size:13px;font-weight:600;color:var(--gray)"></div>
+        </div>
+        <div class="card">
           <div class="ct">Loaded Week History</div>
           <div class="tw"><table><thead><tr><th>Week</th><th>Reps</th><th>Gross Bonus</th><th>Arcade</th><th>CB</th><th>Net</th><th>Loaded</th><th></th></tr></thead><tbody id="wk-body"></tbody></table></div>
         </div>
@@ -839,13 +857,14 @@ var DRULES={
   arc:{hsi:10,bts:2},
   upg:2,
   cbFlag:40,
-  flgcb:10
+  flgcb:10,
+  cbMaxPct:50
 };
 
 // ---- STORAGE ----
 function ld(k,d){try{var v=localStorage.getItem(k);return v?JSON.parse(v):d;}catch(e){return d;}}
 function sv(k,v){localStorage.setItem(k,JSON.stringify(v));if(typeof markDirty==='function')markDirty(k);}
-function getRules(){var r=ld(SK.rules,null);if(!r)return JSON.parse(JSON.stringify(DRULES));if(r.cbFlag===undefined)r.cbFlag=40;if(r.flgcb===undefined)r.flgcb=10;return r;}
+function getRules(){var r=ld(SK.rules,null);if(!r)return JSON.parse(JSON.stringify(DRULES));if(r.cbFlag===undefined)r.cbFlag=40;if(r.flgcb===undefined)r.flgcb=10;if(r.cbMaxPct===undefined)r.cbMaxPct=50;return r;}
 function getRoster(){
   var r=ld(SK.roster,null);
   if(r===null){r=SEED_REPS.slice();sv(SK.roster,r);}
@@ -1114,23 +1133,44 @@ function allocateAll(ntid){
   var cbs=getCBs();var mine=[];
   for(var i=0;i<cbs.length;i++){if(cbs[i].ntid.toLowerCase()===ntid.toLowerCase())mine.push(cbs[i]);}
   var pw=repPayoutWeeks(ntid); // ascending, payout>0
-  var consumed={}; // weekStart -> $ already taken
-  var result={};   // weekStart -> [{cb,amount}]
-  function push(ws,cb,amt){if(!result[ws])result[ws]=[];result[ws].push({cb:cb,amount:amt});consumed[ws]=(consumed[ws]||0)+amt;}
-  // Manual first (fixed schedule), so auto rollovers fill remaining room.
+  var maxPct=getRules().cbMaxPct;                 // 0 = no cap (take full bonus)
+  var consumed={};      // weekStart -> total $ taken (manual + auto)
+  var autoConsumed={};  // weekStart -> $ taken by AUTO chargebacks only (subject to the cap)
+  var result={};        // weekStart -> [{cb,amount}]
+  function push(ws,cb,amt,isAuto){if(!result[ws])result[ws]=[];result[ws].push({cb:cb,amount:amt});consumed[ws]=(consumed[ws]||0)+amt;if(isAuto)autoConsumed[ws]=(autoConsumed[ws]||0)+amt;}
+  // Gross bonus for a week from the payout-week list.
+  function grossOf(ws){for(var i=0;i<pw.length;i++){if(pw[i].weekStart===ws)return pw[i].gross;}return 0;}
+  // Manual first (fixed schedule, EXEMPT from the cap), so auto rollovers fill remaining room.
   for(var m=0;m<mine.length;m++){var cb=mine[m];if(cb.mode==='manual'&&cb.payments){
-    for(var p=0;p<cb.payments.length;p++){push(cb.payments[p].weekStart,cb,cb.payments[p].amount);}
+    for(var p=0;p<cb.payments.length;p++){push(cb.payments[p].weekStart,cb,cb.payments[p].amount,false);}
   }}
-  // Auto next, in creation order.
+  // Auto next, in creation order. For each CB, deduct starting at its picked week,
+  // then the NEAREST payout week (forward first on ties, then backward) until covered.
   for(var a=0;a<mine.length;a++){var cbA=mine[a];if(cbA.mode==='manual')continue;
     var remaining=cbA.totalOwed;var startWk=cbA.startWeek||cbA.date||'0000-01-01';
-    for(var w=0;w<pw.length;w++){
+    var after=[],before=[];
+    for(var w=0;w<pw.length;w++){if(pw[w].weekStart>=startWk)after.push(pw[w]);else before.push(pw[w]);}
+    after.sort(function(x,y){return x.weekStart<y.weekStart?-1:1;});      // nearest forward first
+    before.sort(function(x,y){return x.weekStart>y.weekStart?-1:1;});     // nearest backward first
+    var order=after.concat(before);
+    for(var o=0;o<order.length;o++){
       if(remaining<=0.001)break;
-      if(pw[w].weekStart<startWk)continue;
-      var avail=pw[w].gross-(consumed[pw[w].weekStart]||0);
+      var gross=order[o].gross;var ws=order[o].weekStart;
+      // Room left in the week overall (never exceed the bonus).
+      var roomTotal=gross-(consumed[ws]||0);
+      if(roomTotal<=0.001)continue;
+      // Auto cap: at most maxPct% of the week's GROSS bonus across all auto CBs.
+      var avail;
+      if(maxPct>0){
+        var capDollars=gross*maxPct/100;
+        var roomCap=capDollars-(autoConsumed[ws]||0);
+        avail=Math.min(roomTotal,roomCap);
+      } else {
+        avail=roomTotal; // no cap
+      }
       if(avail<=0.001)continue;
       var take=Math.min(avail,remaining);
-      push(pw[w].weekStart,cbA,take);remaining-=take;
+      push(ws,cbA,take,true);remaining-=take;
     }
   }
   return result;
@@ -1492,7 +1532,7 @@ function mergeAndSave(pbi,emp,csv,ws,we,stEl,ret){
   var gross=0,arc=0;
   for(var g=0;g<reps.length;g++){var c=calcRep(reps[g]);gross+=c.weeklyBonus;arc+=c.arcade;}
   var weeks=getWeeks().filter(function(w){return w.weekStart!==ws;});
-  weeks.push({weekStart:ws,weekEnd:we,reps:reps,loadedAt:new Date().toISOString(),grossBonus:gross,arcadeTotal:arc});
+  weeks.push({weekStart:ws,weekEnd:we,reps:reps,loadedAt:new Date().toISOString(),grossBonus:gross,arcadeTotal:arc,placeholder:false});
   sv(SK.weeks,weeks);
   document.getElementById('sw').textContent=fmtR(ws,we);
   var retCount=0;for(var rc0=0;rc0<reps.length;rc0++){if(reps[rc0].retention!==null&&reps[rc0].retention!==undefined)retCount++;}
@@ -2274,6 +2314,54 @@ function addCat(){var v=document.getElementById('newcat').value.trim();if(!v){sh
 function delCat(idx){openConf('Delete category?',function(){var c=getCats();c.splice(idx,1);sv(SK.cats,c);renderCatList();showToast('Deleted.');});}
 
 // ---- WEEKS TABLE ----
+// ═══ FUTURE / PLACEHOLDER PAYROLL WEEKS ═══
+// A placeholder week has no reps ($0 bonus) until real reports are processed for its dates.
+// Because mergeAndSave filters by weekStart before pushing, processing reports for a
+// placeholder's dates REPLACES it cleanly (fills it, no duplicate).
+function addDays(iso,n){var d=new Date(iso+'T00:00:00');d.setDate(d.getDate()+n);return d.toISOString().substring(0,10);}
+function nextMonday(iso){var d=new Date(iso+'T00:00:00');var day=d.getDay();var add=((8-day)%7)||7;d.setDate(d.getDate()+add);return d.toISOString().substring(0,10);}
+function weekExists(ws){var w=getWeeks();for(var i=0;i<w.length;i++){if(w[i].weekStart===ws)return true;}return false;}
+function createPlaceholderWeek(ws,we){
+  if(weekExists(ws))return false;
+  var weeks=getWeeks();
+  weeks.push({weekStart:ws,weekEnd:we,reps:[],loadedAt:null,grossBonus:0,arcadeTotal:0,placeholder:true});
+  sv(SK.weeks,weeks);
+  return true;
+}
+function addOneFutureWeek(){
+  var st=document.getElementById('fw-status');
+  var start=document.getElementById('fw-start').value;
+  if(!start){
+    // Default: the Monday after the latest week (or after today)
+    var lw=getLatestWeek();
+    start=lw?nextMonday(lw.weekStart):nextMonday(new Date().toISOString().substring(0,10));
+  }
+  var end=addDays(start,6);
+  if(weekExists(start)){st.textContent='\u26A0\uFE0F That week already exists ('+fmtR(start,end)+').';return;}
+  createPlaceholderWeek(start,end);
+  st.textContent='\u2705 Added placeholder week '+fmtR(start,end)+'. It will fill when you process reports for those dates.';
+  document.getElementById('fw-start').value='';
+  renderWkTable();fillExportWk&&fillExportWk();
+  showToast('Future week added.');
+}
+function batchFutureWeeks(){
+  var st=document.getElementById('fw-status');
+  var n=parseInt(document.getElementById('fw-count').value)||0;
+  if(n<1){st.textContent='\u26A0\uFE0F Enter how many weeks to generate.';return;}
+  var lw=getLatestWeek();
+  var cursor=lw?lw.weekStart:new Date().toISOString().substring(0,10);
+  var added=0,skipped=0,first='',last='';
+  for(var i=0;i<n;i++){
+    cursor=nextMonday(cursor);
+    var end=addDays(cursor,6);
+    if(weekExists(cursor)){skipped++;continue;}
+    createPlaceholderWeek(cursor,end);added++;
+    if(!first)first=cursor;last=end;
+  }
+  st.textContent='\u2705 Generated '+added+' future week(s)'+(added?' ('+fmtR(first,last)+')':'')+(skipped?', '+skipped+' already existed':'')+'.';
+  renderWkTable();fillExportWk&&fillExportWk();
+  showToast(added+' future week(s) added.');
+}
 function renderWkTable(){
   var weeks=getWeeks();var body=document.getElementById('wk-body');
   if(!weeks.length){body.innerHTML='<tr><td colspan="8" style="text-align:center;color:var(--gray);padding:20px">No weeks loaded.</td></tr>';return;}
@@ -2282,11 +2370,12 @@ function renderWkTable(){
     var wk=weeks[i];var cbTot=0;
     for(var r=0;r<wk.reps.length;r++){cbTot+=cbForWeek(wk.reps[r].ntid,wk.weekStart).total;}
     var net=Math.max(0,(wk.grossBonus||0)-cbTot);
-    rows+='<tr><td>'+fmtR(wk.weekStart,wk.weekEnd)+'</td><td>'+wk.reps.length+'</td>'+
+    var phBadge=wk.placeholder?' <span class="badge" style="background:#fef3c7;color:#92400e;font-size:9px">FUTURE</span>':'';
+    rows+='<tr'+(wk.placeholder?' style="background:#fffdf5"':'')+'><td>'+fmtR(wk.weekStart,wk.weekEnd)+phBadge+'</td><td>'+(wk.placeholder?'<span style="color:var(--gray)">\u2014</span>':wk.reps.length)+'</td>'+
       '<td class="amt">'+fmt(wk.grossBonus||0)+'</td>'+
       '<td class="amt" style="color:var(--orange)">'+fmt(wk.arcadeTotal||0)+'</td>'+
       '<td class="amt rd">'+fmt(cbTot)+'</td><td class="amt gr">'+fmt(net)+'</td>'+
-      '<td style="font-size:11px;color:var(--gray)">'+fmtDT(wk.loadedAt)+'</td>'+
+      '<td style="font-size:11px;color:var(--gray)">'+(wk.loadedAt?fmtDT(wk.loadedAt):'<em>awaiting reports</em>')+'</td>'+
       '<td><button class="btn btn-d btn-sm" onclick="delWk(\''+wk.weekStart+'\')">Delete</button></td></tr>';
   }
   body.innerHTML=rows;
@@ -2480,7 +2569,8 @@ function renderRules(){
       '<div class="rr"><label>Decel Factor (0\u20131)</label><input type="number" id="r-df" value="'+r.df+'" min="0" max="1" step="0.1"></div></div>'+
     '<div class="rb"><h4>Chargeback</h4>'+
       '<div class="rr"><label>Flag Threshold ($)</label><input type="number" id="r-cbf" value="'+r.cbFlag+'" min="0" step="1"></div>'+
-      '<div class="rr"><label>Flagged Line CB $/line</label><input type="number" id="r-flgcb" value="'+r.flgcb+'" min="0" step="1"></div></div>'+
+      '<div class="rr"><label>Flagged Line CB $/line</label><input type="number" id="r-flgcb" value="'+r.flgcb+'" min="0" step="1"></div>'+
+      '<div class="rr"><label>Max CB % of weekly bonus</label><input type="number" id="r-cbmax" value="'+r.cbMaxPct+'" min="0" max="100" step="1"> <span style="font-size:12px;color:var(--gray)">% (0 = take full bonus)</span></div></div>'+
     buildPromoManager()+
     buildCoachManager()+
     buildCoachEmailEditor();
@@ -2643,6 +2733,7 @@ function saveRules(){
   r.df=parseFloat(document.getElementById('r-df').value)||0.5;
   r.cbFlag=parseFloat(document.getElementById('r-cbf').value)||40;
   r.flgcb=parseFloat(document.getElementById('r-flgcb').value);if(isNaN(r.flgcb))r.flgcb=10;
+  r.cbMaxPct=parseFloat(document.getElementById('r-cbmax').value);if(isNaN(r.cbMaxPct))r.cbMaxPct=50;if(r.cbMaxPct<0)r.cbMaxPct=0;if(r.cbMaxPct>100)r.cbMaxPct=100;
   sv(SK.rules,r);showToast('Rules saved!');
 }
 function resetRules(){openConf('Reset all rules to default?',function(){sv(SK.rules,JSON.parse(JSON.stringify(DRULES)));renderRules();showToast('Reset.');});}
