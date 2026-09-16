@@ -890,10 +890,26 @@ function getCoachEmails(){
   return SP_CONFIG.coachEmails;
 }
 function getLatestWeek(){var w=getWeeks();if(!w.length)return null;w.sort(function(a,b){return new Date(b.weekStart)-new Date(a.weekStart);});return w[0];}
-function getRosterRep(ntid){var r=getRoster();for(var i=0;i<r.length;i++){if(r[i].ntid.toLowerCase()===ntid.toLowerCase())return r[i];}return null;}
+function normNtid(n){return String(n==null?'':n).trim().toLowerCase();}
+// One-time cleanup: strip stray whitespace from NTIDs in the roster and loaded weeks so
+// roster<->report matching never breaks on a trailing space. Idempotent and cheap.
+function normalizeAllNtids(){
+  var changed=false;
+  var ros=getRoster();
+  for(var i=0;i<ros.length;i++){if(ros[i].ntid&&ros[i].ntid!==ros[i].ntid.trim()){ros[i].ntid=ros[i].ntid.trim();changed=true;}}
+  if(changed)sv(SK.roster,ros);
+  var wchanged=false;var wks=getWeeks();
+  for(var w=0;w<wks.length;w++){for(var r=0;r<wks[w].reps.length;r++){var rp=wks[w].reps[r];if(rp.ntid&&rp.ntid!==rp.ntid.trim()){rp.ntid=rp.ntid.trim();wchanged=true;}}}
+  if(wchanged)sv(SK.weeks,wks);
+  // Chargebacks too (so deductions match)
+  var cchanged=false;var cbs=getCBs();
+  for(var c=0;c<cbs.length;c++){if(cbs[c].ntid&&cbs[c].ntid!==cbs[c].ntid.trim()){cbs[c].ntid=cbs[c].ntid.trim();cchanged=true;}}
+  if(cchanged)sv(SK.cb,cbs);
+}
+function getRosterRep(ntid){var q=normNtid(ntid);var r=getRoster();for(var i=0;i<r.length;i++){if(normNtid(r[i].ntid)===q)return r[i];}return null;}
 // Live coach/store resolution: roster is source of truth, week snapshot is fallback
 function liveCoach(rep){var rr=getRosterRep(rep.ntid);return(rr&&rr.coach)?rr.coach:(rep.coach||'TBD');}
-function liveStore(rep){var rr=getRosterRep(rep.ntid);return(rr&&rr.store)?rr.store:(rep.home_store||'');}
+function liveStore(rep){var rr=getRosterRep(rep.ntid);return(rr&&rr.store)?rr.store:(rep.home_store||rep.store||'');}
 function storeManager(storeName){if(!storeName)return'';var ss=getStores();for(var i=0;i<ss.length;i++){if(ss[i].store===storeName)return ss[i].manager||'';}return'';}
 function liveManager(rep){return storeManager(liveStore(rep));}
 
@@ -1332,6 +1348,7 @@ function logout(){
 
 // ---- LAUNCH ----
 function launchApp(){
+  normalizeAllNtids();
   document.getElementById('login-screen').style.display='none';document.getElementById('app').style.display='block';
   var msBtn=document.getElementById('ms-connect-btn');
   if(msBtn)msBtn.style.display=(role==='admin'&&!msalAccount)?'inline-block':'none';
