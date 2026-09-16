@@ -617,7 +617,12 @@ tbody td{padding:10px 12px;white-space:nowrap}
       <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;cursor:pointer"><input type="radio" name="sched-mode" value="auto" onchange="schedModeChange()"> Auto rollover</label>
       <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;cursor:pointer"><input type="radio" name="sched-mode" value="manual" onchange="schedModeChange()"> Manual distribution</label>
     </div>
-    <div id="sched-auto-note" style="font-size:12px;color:var(--gray);background:#f0f8f0;border-radius:8px;padding:10px 12px;margin-bottom:12px">Auto: takes what fits from each week's payout (never below $0), rolls the rest to the next week that has a payout. Recalculates automatically as new weeks load.</div>
+    <div id="sched-start-wrap" style="margin-bottom:12px">
+      <label style="font-size:12px;font-weight:700;color:var(--gray);display:block;margin-bottom:4px">Deduct starting from week</label>
+      <select id="sched-start" style="padding:8px 12px;border:1.5px solid var(--gl);border-radius:8px;font-family:inherit;font-size:13px;font-weight:600"></select>
+      <div style="font-size:11px;color:var(--gray);margin-top:4px">The chargeback deducts from this week forward \u2014 never from earlier weeks.</div>
+    </div>
+    <div id="sched-auto-note" style="font-size:12px;color:var(--gray);background:#f0f8f0;border-radius:8px;padding:10px 12px;margin-bottom:12px">Auto: takes what fits from each week's payout (never below $0), rolls the rest forward to the next week that has a payout. Recalculates automatically as new weeks load.</div>
     <div id="sched-manual" style="display:none">
       <div style="font-size:12px;color:var(--gray);margin-bottom:8px">Enter the amount to deduct from each week. Leave blank or 0 to skip a week. The rep's bonus for each week is shown so you don't over-deduct.</div>
       <div id="sched-weeks" style="max-height:280px;overflow:auto"></div>
@@ -1849,7 +1854,7 @@ function repBreakdownHTML(rd,wk){
   var pvp=c.voice.idx>=0?r.vt[c.voice.idx].pay:0;
   var decelBanner=c.voice.decel?'<div style="background:#fff3cd;border:1px solid #ffc107;border-radius:10px;padding:10px 14px;font-size:12px;font-weight:600;color:#856404;margin-bottom:12px">\u26A0\uFE0F 50% Decelerator Applied \u2014 95-day retention ('+(rd.retention!==null&&rd.retention!==undefined?rd.retention.toFixed(1)+'%':'n/a')+') is below '+r.drt+'%</div>':'';
   var cbL='';
-  for(var ci=0;ci<cbd.items.length;ci++){var it=cbd.items[ci];cbL+='<div class="br cb"><span class="bl">\u26A0\uFE0F Reason: '+esc(it.category)+(it.notes?' \u2014 '+esc(it.notes):'')+' ('+fmtD(it.date)+')</span><span class="bv">-'+fmt(it.amount)+'</span></div>';}
+  for(var ci=0;ci<cbd.items.length;ci++){var it=cbd.items[ci];cbL+='<div class="br cb"><span class="bl">\u26A0\uFE0F Reason: '+esc(it.category)+(it.notes?' \u2014 '+esc(it.notes):'')+(it.rolled?' <span style="color:var(--orange);font-size:11px">(rolled from balance)</span>':'')+'</span><span class="bv">-'+fmt(it.amount)+'</span></div>';}
   var statCards=
     '<div class="sc mg"><div class="val">'+fmt(c.weeklyBonus)+'</div><div class="lbl">Weekly Bonus</div></div>'+
     '<div class="sc rd"><div class="val">'+fmt(cbd.total)+'</div><div class="lbl">Chargebacks</div></div>'+
@@ -2115,6 +2120,13 @@ function openSchedule(idx){
   document.getElementById('sched-info').innerHTML='<strong>'+esc(cb.repName||cb.ntid)+'</strong> \u2014 '+esc(cb.category)+' \u2014 Total Owed: <strong>'+fmt(cb.totalOwed)+'</strong>';
   var mode=(cb.mode==='manual')?'manual':'auto';
   var radios=document.getElementsByName('sched-mode');for(var i=0;i<radios.length;i++){radios[i].checked=(radios[i].value===mode);}
+  // Populate start-week picker (all weeks, ascending), selecting the CB's current start.
+  var ss=document.getElementById('sched-start');
+  var wksAsc=getWeeks().slice().sort(function(a,b){return new Date(a.weekStart)-new Date(b.weekStart);});
+  ss.innerHTML='';
+  for(var s=0;s<wksAsc.length;s++){var o=document.createElement('option');o.value=wksAsc[s].weekStart;o.textContent=fmtR(wksAsc[s].weekStart,wksAsc[s].weekEnd);ss.appendChild(o);}
+  var curStart=cb.startWeek||(getLatestWeek()?getLatestWeek().weekStart:'');
+  ss.value=curStart;
   buildSchedWeeks(cb);
   schedModeChange();
   om('mo-sched');
@@ -2123,6 +2135,7 @@ function schedModeChange(){
   var mode=getSchedMode();
   document.getElementById('sched-manual').style.display=(mode==='manual')?'block':'none';
   document.getElementById('sched-auto-note').style.display=(mode==='auto')?'block':'none';
+  var sw=document.getElementById('sched-start-wrap');if(sw)sw.style.display=(mode==='auto')?'block':'none';
 }
 function getSchedMode(){var radios=document.getElementsByName('sched-mode');for(var i=0;i<radios.length;i++){if(radios[i].checked)return radios[i].value;}return 'auto';}
 function buildSchedWeeks(cb){
@@ -2146,7 +2159,9 @@ function saveSchedule(){
     cb.mode='auto';
     // drop any manual payment schedule; auto is computed live
     cb.payments=cb.payments?cb.payments.filter(function(p){return p.flagged;}):[];
-    if(!cb.startWeek){var lw=getLatestWeek();cb.startWeek=lw?lw.weekStart:cb.date;}
+    var pickedStart=document.getElementById('sched-start').value;
+    if(pickedStart){cb.startWeek=pickedStart;}
+    else if(!cb.startWeek){var lw=getLatestWeek();cb.startWeek=lw?lw.weekStart:cb.date;}
   } else {
     cb.mode='manual';
     var inps=document.querySelectorAll('.sched-inp');var pays=[];var sum=0;
@@ -2957,7 +2972,8 @@ function drawSlip(doc,rep,week){
       doc.setFont('helvetica','normal');doc.setTextColor(200,0,0);
       var cbTxt='Reason: '+cbi.category+(cbi.notes?' \u2014 '+cbi.notes:'');
       if(cbTxt.length>46)cbTxt=cbTxt.substring(0,43)+'...';
-      doc.text(cbTxt,CX[0]+4,y+11);doc.text(fmtD(cbi.date),CX[1],y+11);
+      doc.text(cbTxt,CX[0]+4,y+11);
+      if(cbi.rolled){doc.setFont('helvetica','italic');doc.setFontSize(8);doc.text('rolled from balance',CX[1],y+11);doc.setFontSize(9);}
       doc.setFont('helvetica','bold');doc.text('-'+fmt(cbi.amount),CX[2],y+11);y+=16;
     }
   } else {
