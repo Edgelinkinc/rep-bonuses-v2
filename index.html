@@ -858,13 +858,14 @@ var DRULES={
   upg:2,
   cbFlag:40,
   flgcb:10,
-  cbMaxPct:50
+  cbMaxPct:50,
+  cbCapThresh:20
 };
 
 // ---- STORAGE ----
 function ld(k,d){try{var v=localStorage.getItem(k);return v?JSON.parse(v):d;}catch(e){return d;}}
 function sv(k,v){localStorage.setItem(k,JSON.stringify(v));if(typeof markDirty==='function')markDirty(k);}
-function getRules(){var r=ld(SK.rules,null);if(!r)return JSON.parse(JSON.stringify(DRULES));if(r.cbFlag===undefined)r.cbFlag=40;if(r.flgcb===undefined)r.flgcb=10;if(r.cbMaxPct===undefined)r.cbMaxPct=50;return r;}
+function getRules(){var r=ld(SK.rules,null);if(!r)return JSON.parse(JSON.stringify(DRULES));if(r.cbFlag===undefined)r.cbFlag=40;if(r.flgcb===undefined)r.flgcb=10;if(r.cbMaxPct===undefined)r.cbMaxPct=50;if(r.cbCapThresh===undefined)r.cbCapThresh=20;return r;}
 function getRoster(){
   var r=ld(SK.roster,null);
   if(r===null){r=SEED_REPS.slice();sv(SK.roster,r);}
@@ -1144,34 +1145,65 @@ function allocateAll(ntid){
   for(var m=0;m<mine.length;m++){var cb=mine[m];if(cb.mode==='manual'&&cb.payments){
     for(var p=0;p<cb.payments.length;p++){push(cb.payments[p].weekStart,cb,cb.payments[p].amount,false);}
   }}
-  // Auto next, in creation order. For each CB, deduct starting at its picked week,
-  // then the NEAREST payout week (forward first on ties, then backward) until covered.
+  // Auto chargebacks: allocate WEEK-BY-WEEK so the threshold can be judged on the
+  // combined weekly total. Each auto CB carries a running 'remaining' balance and a
+  // preferred week order (nearest to its start week, forward first then backward).
+  var thresh=getRules().cbCapThresh;  // combined weekly auto CB at/under this = take in full
+  var autos=[];
   for(var a=0;a<mine.length;a++){var cbA=mine[a];if(cbA.mode==='manual')continue;
-    var remaining=cbA.totalOwed;var startWk=cbA.startWeek||cbA.date||'0000-01-01';
+    var startWk=cbA.startWeek||cbA.date||'0000-01-01';
     var after=[],before=[];
-    for(var w=0;w<pw.length;w++){if(pw[w].weekStart>=startWk)after.push(pw[w]);else before.push(pw[w]);}
-    after.sort(function(x,y){return x.weekStart<y.weekStart?-1:1;});      // nearest forward first
-    before.sort(function(x,y){return x.weekStart>y.weekStart?-1:1;});     // nearest backward first
-    var order=after.concat(before);
-    for(var o=0;o<order.length;o++){
-      if(remaining<=0.001)break;
-      var gross=order[o].gross;var ws=order[o].weekStart;
-      // Room left in the week overall (never exceed the bonus).
-      var roomTotal=gross-(consumed[ws]||0);
-      if(roomTotal<=0.001)continue;
-      // Auto cap: at most maxPct% of the week's GROSS bonus across all auto CBs.
-      var avail;
-      if(maxPct>0){
-        var capDollars=gross*maxPct/100;
-        var roomCap=capDollars-(autoConsumed[ws]||0);
-        avail=Math.min(roomTotal,roomCap);
-      } else {
-        avail=roomTotal; // no cap
+    for(var w=0;w<pw.length;w++){if(pw[w].weekStart>=startWk)after.push(pw[w].weekStart);else before.push(pw[w].weekStart);}
+    after.sort();before.sort().reverse();
+    autos.push({cb:cbA,remaining:cbA.totalOwed,order:after.concat(before)});
+  }
+  // Allocate in PASSES. Each pass, every unpaid auto CB targets ONLY its current
+  // nearest-preferred week (front of its order list that still has room). We then
+  // process those targeted weeks chronologically so the threshold/cap is judged on the
+  // combined weekly total, filling each week up to its ceiling. Repeat until nothing moves.
+  // This honors each CB's forward-first-then-backward preference AND the weekly threshold.
+  var guard=0;
+  while(guard++<500){
+    // Each CB picks its current best target week (first in order with remaining room).
+    var targets={}; // ws -> [autoEntry,...]
+    var anyWant=false;
+    for(var q=0;q<autos.length;q++){var A=autos[q];if(A.remaining<=0.001)continue;
+      for(var oi=0;oi<A.order.length;oi++){var cand=A.order[oi];
+        var groomLeft=grossOf(cand)-(consumed[cand]||0);
+        var capLeft=(maxPct>0)?(grossOf(cand)*maxPct/100-(autoConsumed[cand]||0)):groomLeft;
+        var room=Math.min(groomLeft, (maxPct>0?capLeft:groomLeft));
+        if(room>0.001){ if(!targets[cand])targets[cand]=[]; targets[cand].push(A); anyWant=true; break; }
       }
-      if(avail<=0.001)continue;
-      var take=Math.min(avail,remaining);
-      push(ws,cbA,take,true);remaining-=take;
     }
+    if(!anyWant)break;
+    // Process targeted weeks chronologically.
+    var tws=[];for(var k in targets)tws.push(k);tws.sort();
+    var moved=false;
+    for(var ti=0;ti<tws.length;ti++){
+      var ws=tws[ti];var gross=grossOf(ws);
+      var roomTotal=gross-(consumed[ws]||0);if(roomTotal<=0.001)continue;
+      var wantHere=targets[ws];var demand=0;for(var d=0;d<wantHere.length;d++)demand+=wantHere[d].remaining;
+      var uncapped=Math.min(demand,roomTotal);
+      // Threshold test on combined weekly auto total already taken + this demand.
+      var weekAutoSoFar=autoConsumed[ws]||0;
+      var combinedThisWeek=weekAutoSoFar+uncapped;
+      var ceiling;
+      if(maxPct>0 && combinedThisWeek>thresh){
+        ceiling=Math.min(roomTotal, gross*maxPct/100-(autoConsumed[ws]||0));
+      } else {
+        ceiling=roomTotal;
+      }
+      if(ceiling<=0.001)continue;
+      var budget=ceiling;
+      for(var f=0;f<wantHere.length;f++){
+        if(budget<=0.001)break;
+        var take=Math.min(wantHere[f].remaining,budget);
+        if(take<=0.001)continue;
+        push(ws,wantHere[f].cb,take,true);
+        wantHere[f].remaining-=take;budget-=take;moved=true;
+      }
+    }
+    if(!moved)break;
   }
   return result;
 }
@@ -2570,7 +2602,8 @@ function renderRules(){
     '<div class="rb"><h4>Chargeback</h4>'+
       '<div class="rr"><label>Flag Threshold ($)</label><input type="number" id="r-cbf" value="'+r.cbFlag+'" min="0" step="1"></div>'+
       '<div class="rr"><label>Flagged Line CB $/line</label><input type="number" id="r-flgcb" value="'+r.flgcb+'" min="0" step="1"></div>'+
-      '<div class="rr"><label>Max CB % of weekly bonus</label><input type="number" id="r-cbmax" value="'+r.cbMaxPct+'" min="0" max="100" step="1"> <span style="font-size:12px;color:var(--gray)">% (0 = take full bonus)</span></div></div>'+
+      '<div class="rr"><label>Max CB % of weekly bonus</label><input type="number" id="r-cbmax" value="'+r.cbMaxPct+'" min="0" max="100" step="1"> <span style="font-size:12px;color:var(--gray)">% (0 = take full bonus)</span></div>'+
+      '<div class="rr"><label>Cap applies when week CB exceeds $</label><input type="number" id="r-cbthresh" value="'+r.cbCapThresh+'" min="0" step="1"> <span style="font-size:12px;color:var(--gray)">(at/under = take in full)</span></div></div>'+
     buildPromoManager()+
     buildCoachManager()+
     buildCoachEmailEditor();
@@ -2734,6 +2767,7 @@ function saveRules(){
   r.cbFlag=parseFloat(document.getElementById('r-cbf').value)||40;
   r.flgcb=parseFloat(document.getElementById('r-flgcb').value);if(isNaN(r.flgcb))r.flgcb=10;
   r.cbMaxPct=parseFloat(document.getElementById('r-cbmax').value);if(isNaN(r.cbMaxPct))r.cbMaxPct=50;if(r.cbMaxPct<0)r.cbMaxPct=0;if(r.cbMaxPct>100)r.cbMaxPct=100;
+  r.cbCapThresh=parseFloat(document.getElementById('r-cbthresh').value);if(isNaN(r.cbCapThresh))r.cbCapThresh=20;if(r.cbCapThresh<0)r.cbCapThresh=0;
   sv(SK.rules,r);showToast('Rules saved!');
 }
 function resetRules(){openConf('Reset all rules to default?',function(){sv(SK.rules,JSON.parse(JSON.stringify(DRULES)));renderRules();showToast('Reset.');});}
