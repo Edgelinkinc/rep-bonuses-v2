@@ -386,6 +386,8 @@ tbody td{padding:10px 12px;white-space:nowrap}
               <button class="btn btn-s btn-sm" onclick="dlCBTemplate('csv')">&#11015; CSV TEMPLATE</button>
               <button class="btn btn-s btn-sm" onclick="document.getElementById('f-cbi').click()">&#11014; IMPORT</button>
               <input type="file" id="f-cbi" accept=".xlsx,.csv" style="display:none" onchange="importCBFile(this)">
+              <button class="btn btn-pu btn-sm" onclick="document.getElementById('f-flg').click()">&#9873; LOAD FLAGGED LINES</button>
+              <input type="file" id="f-flg" accept=".xlsx,.csv" style="display:none" onchange="loadFlaggedFile(this)">
               <button class="btn btn-p btn-sm" onclick="openAddCB()">+ ADD</button>
             </div>
           </div>
@@ -574,6 +576,18 @@ tbody td{padding:10px 12px;white-space:nowrap}
     <div class="fg"><label>Amount to Deduct ($)</label><input type="number" id="pay-amt" placeholder="0.00" min="0.01" step="0.01"></div>
     <div class="fg"><label>Apply to Week</label><select id="pay-wk"></select></div>
     <div class="mf"><button class="btn btn-s" onclick="cm('mo-pay')">Cancel</button><button class="btn btn-p" onclick="applyPay()">APPLY</button></div>
+  </div>
+</div>
+
+<div class="mo" id="mo-flag">
+  <div class="md" style="max-width:620px">
+    <h3>Load Flagged Lines Report</h3>
+    <div id="flag-info" style="font-size:13px;color:var(--gray);margin-bottom:12px"></div>
+    <div class="fg"><label>Category (from report)</label><input type="text" id="flag-cat" readonly style="background:#f6f4f8"></div>
+    <div class="fg"><label>Charge per flagged line ($)</label><input type="number" id="flag-rate" min="0" step="1"></div>
+    <div class="fg"><label>Deduct from Week</label><select id="flag-wk"></select></div>
+    <div id="flag-preview" style="max-height:240px;overflow:auto;border:1px solid var(--gl);border-radius:8px;margin:10px 0;font-size:12px"></div>
+    <div class="mf"><button class="btn btn-s" onclick="cm('mo-flag')">Cancel</button><button class="btn btn-p" onclick="commitFlagged()">IMPORT CHARGEBACKS</button></div>
   </div>
 </div>
 
@@ -807,13 +821,14 @@ var DRULES={
   at:[{min:299,max:499,pct:5},{min:500,max:749,pct:7},{min:750,max:999,pct:10},{min:1000,max:1499,pct:15},{min:1500,max:999999,pct:20}],
   arc:{hsi:10,bts:2},
   upg:2,
-  cbFlag:40
+  cbFlag:40,
+  flgcb:10
 };
 
 // ---- STORAGE ----
 function ld(k,d){try{var v=localStorage.getItem(k);return v?JSON.parse(v):d;}catch(e){return d;}}
 function sv(k,v){localStorage.setItem(k,JSON.stringify(v));if(typeof markDirty==='function')markDirty(k);}
-function getRules(){var r=ld(SK.rules,null);if(!r)return JSON.parse(JSON.stringify(DRULES));if(r.cbFlag===undefined)r.cbFlag=40;return r;}
+function getRules(){var r=ld(SK.rules,null);if(!r)return JSON.parse(JSON.stringify(DRULES));if(r.cbFlag===undefined)r.cbFlag=40;if(r.flgcb===undefined)r.flgcb=10;return r;}
 function getRoster(){
   var r=ld(SK.roster,null);
   if(r===null){r=SEED_REPS.slice();sv(SK.roster,r);}
@@ -1952,6 +1967,97 @@ function dlCBTemplate(type){
     XLSX.writeFile(wb,'CB_Import_Template.xlsx');
   }
 }
+// ═══ FLAGGED LINES CHARGEBACK IMPORT ═══
+var _flagStaged=null; // {category, rows:[{ntid,name,count}]}
+function loadFlaggedFile(inp){
+  var file=inp.files[0];if(!file)return;
+  var ext=file.name.split('.').pop().toLowerCase();
+  if(ext==='csv'){var r=new FileReader();r.onload=function(e){parseFlagged(pCSV(e.target.result));};r.readAsText(file,'latin1');}
+  else{rdXLSX(file,function(rows){if(rows)parseFlagged(rows);else showToast('Failed to read file.');});}
+  inp.value='';
+}
+function parseFlagged(rows){
+  if(!rows||!rows.length){showToast('No data found in report.');return;}
+  // Identify columns: an "Employee" col with Name (ntid), and a numeric category col.
+  // The category is whichever header is NOT Employee/Coach.
+  var keys=Object.keys(rows[0]);
+  var empKey=null,coachKey=null,catKey=null;
+  for(var k=0;k<keys.length;k++){
+    var lk=keys[k].toLowerCase().trim();
+    if(lk==='employee'||lk==='employee name'||lk==='name')empKey=keys[k];
+    else if(lk==='coach')coachKey=keys[k];
+    else if(!catKey)catKey=keys[k]; // first non-employee/coach column = category count
+  }
+  if(!empKey){showToast('No "Employee" column found. Expected columns: Employee, Coach, <Category>.');return;}
+  if(!catKey){showToast('No category count column found (e.g. "High-Risk Activations").');return;}
+  var category=catKey.trim();
+  var parsed=[];
+  for(var i=0;i<rows.length;i++){
+    var emp=String(rows[i][empKey]||'');
+    var m=emp.match(/\(([^)]+)\)/);
+    if(!m)continue; // skip Unknown / blank rows
+    var ntid=m[1].toLowerCase();if(!ntid||ntid==='~'||ntid==='elb')continue;
+    var count=parseInt(rows[i][catKey])||0;
+    if(count<=0)continue; // only reps with flagged lines
+    var name=emp.replace(/\s*\([^)]*\)/,'').trim();
+    parsed.push({ntid:ntid,name:name,count:count});
+  }
+  if(!parsed.length){showToast('No reps with flagged lines found in this report.');return;}
+  _flagStaged={category:category,rows:parsed};
+  // Populate the modal
+  document.getElementById('flag-cat').value='Flagged Line \u2014 '+category;
+  document.getElementById('flag-rate').value=getRules().flgcb;
+  var totalLines=0;for(var p=0;p<parsed.length;p++)totalLines+=parsed[p].count;
+  document.getElementById('flag-info').innerHTML='<strong>'+parsed.length+'</strong> rep(s) with <strong>'+totalLines+'</strong> total flagged line(s) in category <strong>'+esc(category)+'</strong>. Set the per-line charge and the week to deduct from, then import.';
+  // Week dropdown
+  var wkSel=document.getElementById('flag-wk');var wks=getWeeks().slice().sort(function(a,b){return new Date(b.weekStart)-new Date(a.weekStart);});
+  wkSel.innerHTML='';
+  if(!wks.length){wkSel.innerHTML='<option value="">No weeks loaded</option>';}
+  else{for(var w=0;w<wks.length;w++){var o=document.createElement('option');o.value=wks[w].weekStart;o.textContent=fmtR(wks[w].weekStart,wks[w].weekEnd)+(w===0?'  (latest)':'');wkSel.appendChild(o);}}
+  renderFlagPreview();
+  document.getElementById('flag-rate').oninput=renderFlagPreview;
+  om('mo-flag');
+}
+function renderFlagPreview(){
+  if(!_flagStaged)return;
+  var rate=parseFloat(document.getElementById('flag-rate').value)||0;
+  var rows=_flagStaged.rows.slice().sort(function(a,b){return b.count-a.count;});
+  var h='<table style="width:100%;border-collapse:collapse"><thead><tr style="background:#f6f4f8"><th style="text-align:left;padding:6px 8px">Rep</th><th style="text-align:left;padding:6px 8px">NTID</th><th style="text-align:right;padding:6px 8px">Lines</th><th style="text-align:right;padding:6px 8px">Charge</th></tr></thead><tbody>';
+  var tot=0;
+  for(var i=0;i<rows.length;i++){var amt=rows[i].count*rate;tot+=amt;
+    var known=getRosterRep(rows[i].ntid);
+    h+='<tr><td style="padding:5px 8px">'+esc(rows[i].name)+(known?'':' <span style="color:var(--orange);font-size:10px">(not in roster)</span>')+'</td><td style="padding:5px 8px;color:var(--gray)">'+esc(rows[i].ntid)+'</td><td style="text-align:right;padding:5px 8px">'+rows[i].count+'</td><td style="text-align:right;padding:5px 8px;font-weight:600">'+fmt(amt)+'</td></tr>';
+  }
+  h+='</tbody><tfoot><tr style="border-top:2px solid var(--gl);font-weight:700"><td colspan="3" style="padding:6px 8px;text-align:right">TOTAL</td><td style="text-align:right;padding:6px 8px">'+fmt(tot)+'</td></tr></tfoot></table>';
+  document.getElementById('flag-preview').innerHTML=h;
+}
+function commitFlagged(){
+  if(!_flagStaged){showToast('Nothing to import.');return;}
+  var rate=parseFloat(document.getElementById('flag-rate').value);
+  if(isNaN(rate)||rate<0){showToast('Enter a valid per-line charge.');return;}
+  var ws=document.getElementById('flag-wk').value;
+  if(!ws){showToast('Select a week to deduct from.');return;}
+  var wk=null;var wks=getWeeks();for(var i=0;i<wks.length;i++){if(wks[i].weekStart===ws){wk=wks[i];break;}}
+  var cbs=getCBs();var added=0,totalAmt=0;
+  var category='Flagged Line \u2014 '+_flagStaged.category;
+  var today=new Date().toISOString().split('T')[0];
+  for(var r=0;r<_flagStaged.rows.length;r++){
+    var fr=_flagStaged.rows[r];var amt=fr.count*rate;if(amt<=0)continue;
+    var rr=getRosterRep(fr.ntid);var repName=rr?rr.name:fr.name;
+    // One chargeback per rep, fully deducted from the chosen week
+    var cb={ntid:fr.ntid,repName:repName,category:category,date:today,totalOwed:amt,pct:null,
+      notes:fr.count+' flagged line'+(fr.count===1?'':'s')+' \u00D7 '+fmt(rate),
+      payments:[{amount:amt,weekStart:ws,appliedAt:new Date().toISOString(),auto:false,flagged:true}],
+      createdAt:new Date().toISOString(),flaggedImport:true};
+    cbs.push(cb);added++;totalAmt+=amt;
+  }
+  sv(SK.cb,cbs);
+  cm('mo-flag');
+  showToast(added+' flagged-line chargeback(s) imported \u2014 '+fmt(totalAmt)+' total, deducting from '+fmtR(wk.weekStart,wk.weekEnd)+'.');
+  _flagStaged=null;
+  renderCBT();
+  if(typeof renderAH==='function')renderAH();
+}
 function importCBFile(inp){
   var file=inp.files[0];if(!file)return;
   var ext=file.name.split('.').pop().toLowerCase();
@@ -2218,7 +2324,8 @@ function renderRules(){
       '<div class="rr"><label>Retention Threshold %</label><input type="number" id="r-drt" value="'+r.drt+'" min="0" max="100"></div>'+
       '<div class="rr"><label>Decel Factor (0\u20131)</label><input type="number" id="r-df" value="'+r.df+'" min="0" max="1" step="0.1"></div></div>'+
     '<div class="rb"><h4>Chargeback</h4>'+
-      '<div class="rr"><label>Flag Threshold ($)</label><input type="number" id="r-cbf" value="'+r.cbFlag+'" min="0" step="1"></div></div>'+
+      '<div class="rr"><label>Flag Threshold ($)</label><input type="number" id="r-cbf" value="'+r.cbFlag+'" min="0" step="1"></div>'+
+      '<div class="rr"><label>Flagged Line CB $/line</label><input type="number" id="r-flgcb" value="'+r.flgcb+'" min="0" step="1"></div></div>'+
     buildPromoManager()+
     buildCoachManager()+
     buildCoachEmailEditor();
@@ -2380,6 +2487,7 @@ function saveRules(){
   r.drt=parseFloat(document.getElementById('r-drt').value)||57;
   r.df=parseFloat(document.getElementById('r-df').value)||0.5;
   r.cbFlag=parseFloat(document.getElementById('r-cbf').value)||40;
+  r.flgcb=parseFloat(document.getElementById('r-flgcb').value);if(isNaN(r.flgcb))r.flgcb=10;
   sv(SK.rules,r);showToast('Rules saved!');
 }
 function resetRules(){openConf('Reset all rules to default?',function(){sv(SK.rules,JSON.parse(JSON.stringify(DRULES)));renderRules();showToast('Reset.');});}
