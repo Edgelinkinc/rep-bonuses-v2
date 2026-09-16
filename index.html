@@ -1152,10 +1152,12 @@ function allocateAll(ntid){
   var autos=[];
   for(var a=0;a<mine.length;a++){var cbA=mine[a];if(cbA.mode==='manual')continue;
     var startWk=cbA.startWeek||cbA.date||'0000-01-01';
-    var after=[],before=[];
-    for(var w=0;w<pw.length;w++){if(pw[w].weekStart>=startWk)after.push(pw[w].weekStart);else before.push(pw[w].weekStart);}
-    after.sort();before.sort().reverse();
-    autos.push({cb:cbA,remaining:cbA.totalOwed,order:after.concat(before)});
+    // FORWARD ONLY: chargebacks deduct from the start week onward. Never go back into
+    // an earlier (already-paid) week.
+    var after=[];
+    for(var w=0;w<pw.length;w++){if(pw[w].weekStart>=startWk)after.push(pw[w].weekStart);}
+    after.sort();
+    autos.push({cb:cbA,remaining:cbA.totalOwed,order:after});
   }
   // Allocate in PASSES. Each pass, every unpaid auto CB targets ONLY its current
   // nearest-preferred week (front of its order list that still has room). We then
