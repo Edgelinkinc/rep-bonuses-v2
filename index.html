@@ -341,6 +341,7 @@ tbody td{padding:10px 12px;white-space:nowrap}
         <div class="sg" id="mp-stats"></div>
         <div class="card"><div class="ct">Weekly Bonus Breakdown</div><div id="mp-break"></div></div>
         <div class="card"><div class="ct">Monthly Running Total</div><div id="mp-month"></div></div>
+        <div id="mp-faq"></div>
       </div>
 
       <div class="view" id="view-mytier">
@@ -2128,6 +2129,7 @@ function renderMyPay(){
   se.innerHTML=bd.stats;
   be.innerHTML=bd.breakdown;
   me.innerHTML=bd.monthly;
+  var fq=document.getElementById('mp-faq');if(fq)fq.innerHTML=bd.faq;
   return;
   /* legacy inline (unused) */
 }
