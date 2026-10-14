@@ -437,6 +437,26 @@ tbody td{padding:10px 12px;white-space:nowrap}
           <div id="proc-status" style="margin-top:12px;font-size:13px;font-weight:600;color:var(--gray)"></div>
         </div>
         <div class="card">
+          <div class="ct">Backfill Hours / ECS for a Loaded Week</div>
+          <p style="font-size:13px;color:var(--gray);margin-bottom:14px">For weeks loaded before hours or ECS existed. Adds hours (from Employee Performance) and ECS to the stored week <b>without reprocessing</b> &mdash; corrections, promo units and chargebacks are untouched. Bonus amounts do not change.</p>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:end">
+            <div style="display:flex;flex-direction:column;gap:4px">
+              <label style="font-size:12px;font-weight:700;color:var(--gray)">Week</label>
+              <select id="bf-wk" style="padding:8px 10px;border:1.5px solid var(--gl);border-radius:8px;font-family:inherit;font-size:13px"></select>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:4px">
+              <label style="font-size:12px;font-weight:700;color:var(--gray)">Employee Performance (.xls) &mdash; hours</label>
+              <input type="file" id="bf-emp" accept=".xls,.xlsx" style="font-size:12px">
+            </div>
+            <div style="display:flex;flex-direction:column;gap:4px">
+              <label style="font-size:12px;font-weight:700;color:var(--gray)">ECS Sales (.xlsx) &mdash; optional</label>
+              <input type="file" id="bf-ecs" accept=".xlsx" style="font-size:12px">
+            </div>
+            <button class="btn btn-p btn-sm" onclick="backfillWeek()">BACKFILL WEEK</button>
+          </div>
+          <div id="bf-status" style="margin-top:10px;font-size:13px;font-weight:600;color:var(--gray)"></div>
+        </div>
+        <div class="card">
           <div class="ct">Create Future Payroll Weeks</div>
           <p style="font-size:13px;color:var(--gray);margin-bottom:14px">Add empty upcoming weeks so lingering chargebacks have somewhere to roll before reports are uploaded. When you later process reports for these dates, they fill the placeholder automatically (no duplicate).</p>
           <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:end">
@@ -1501,7 +1521,7 @@ function navTo(id){
   var ni=document.getElementById('nav-'+id);if(ni)ni.classList.add('active');
   document.getElementById('tbt').textContent=TITLES[id]||id;closeSB();
   if(id==='admin-home')renderAH();
-  if(id==='upload')renderWkTable();
+  if(id==='upload'){renderWkTable();fillBackfillWk();}
   if(id==='chargebacks'){renderCBT();renderCatList();}
   if(id==='tier'){fillTierWkSel();renderTier();}
   if(id==='roster'){renderRoster();renderStores();}
@@ -1588,6 +1608,52 @@ function processRpts(){
     });
   });
 }
+// Hours from an Employee Performance row, tolerant of header spelling/case/spaces.
+function empHours(row){
+  for(var k in row){var nk=String(k).toLowerCase().replace(/[^a-z]/g,'');
+    if(nk==='hoursworked'||nk==='totalhours'||nk==='hours'){var v=parseFloat(row[k]);return isNaN(v)?null:v;}}
+  return null;
+}
+function parseEcsRows(ecs){
+  var out={};
+  for(var i=0;i<ecs.length;i++){var r=ecs[i];var nm=String(r['Employee Name']||'');var m=nm.match(/\(([^)]+)\)/);if(!m)continue;
+    var nt=m[1].trim().toLowerCase();if(!nt||nt==='~'||nt==='elb')continue;
+    out[nt]={voice:parseFloat(r['Voice Acts ']||r['Voice Acts']||0)||0,mim:parseFloat(r['MiM Acts']||0)||0,
+      hsi:parseFloat(r['HSI Acts ']||r['HSI Acts']||0)||0,bts:parseFloat(r['BTS Acts ']||r['BTS Acts']||0)||0,total:parseFloat(r['Total Acts']||0)||0};}
+  return out;
+}
+function fillBackfillWk(){
+  var sel=document.getElementById('bf-wk');if(!sel)return;var cur=sel.value;
+  var wks=getWeeks().filter(function(w){return w.reps&&w.reps.length;}).sort(function(a,b){return new Date(b.weekStart)-new Date(a.weekStart);});
+  sel.innerHTML='';
+  for(var i=0;i<wks.length;i++){var miss=0;for(var r=0;r<wks[i].reps.length;r++){var h=wks[i].reps[r].hours;if(h===null||h===undefined)miss++;}
+    var o=document.createElement('option');o.value=wks[i].weekStart;o.textContent=fmtR(wks[i].weekStart,wks[i].weekEnd)+(miss?'  \u2014 '+miss+' missing hours':'  \u2014 hours OK');sel.appendChild(o);}
+  if(cur)sel.value=cur;
+}
+function backfillWeek(){
+  var st=document.getElementById('bf-status');var ws=document.getElementById('bf-wk').value;
+  var fe=document.getElementById('bf-emp').files[0];var fc=document.getElementById('bf-ecs').files[0];
+  if(!ws){st.textContent='\u26A0\uFE0F Pick a week.';return;}
+  if(!fe&&!fc){st.textContent='\u26A0\uFE0F Upload the Employee Performance file (and/or ECS).';return;}
+  st.textContent='\u23F3 Reading\u2026';
+  function apply(emp,ecs){
+    var weeks=getWeeks();var wk=null;for(var i=0;i<weeks.length;i++){if(weeks[i].weekStart===ws){wk=weeks[i];break;}}
+    if(!wk){st.textContent='\u274C Week not found.';return;}
+    var hm={};if(emp){for(var j=0;j<emp.length;j++){var er=emp[j];var un=(er.username||er.Username||'').toString().trim().toLowerCase();if(un){var h=empHours(er);if(h!==null)hm[un]=h;}}}
+    var em=ecs?parseEcsRows(ecs):{};
+    var nh=0,ne=0;
+    for(var r=0;r<wk.reps.length;r++){var rp=wk.reps[r];var k=normNtid(rp.ntid);
+      if(hm[k]!==undefined){rp.hours=hm[k];nh++;}
+      if(em[k]){rp.ecs=em[k];ne++;}}
+    if(emp&&!Object.keys(hm).length){st.textContent='\u274C No hours column found in that Employee Performance file.';return;}
+    sv(SK.weeks,weeks);
+    st.textContent='\u2705 '+fmtR(wk.weekStart,wk.weekEnd)+': hours added for '+nh+' of '+wk.reps.length+' reps'+(ecs?', ECS for '+ne:'')+'. Saved and syncing.';
+    document.getElementById('bf-emp').value='';document.getElementById('bf-ecs').value='';
+    fillBackfillWk();showToast('Week backfilled.');
+  }
+  function withEcs(emp){if(fc){rdXLSX(fc,function(ecs){if(!ecs){st.textContent='\u274C Failed to read ECS file.';return;}apply(emp,ecs);});}else apply(emp,null);}
+  if(fe){rdXLSX(fe,function(emp){if(!emp){st.textContent='\u274C Failed to read Employee Performance file.';return;}withEcs(emp);});}else withEcs(null);
+}
 function rdXLSX(file,cb){
   var r=new FileReader();
   r.onload=function(e){try{var wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});cb(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:0}));}catch(er){console.error(er);cb(null);}};
@@ -1646,7 +1712,7 @@ function mergeAndSave(pbi,emp,csv,ws,we,stEl,ret,ecs){
       bts_acts:parseFloat(row['BTS Acts ']||row['BTS Acts']||0)||0};
   }
   var em={};var hoursMap={};
-  for(var j=0;j<emp.length;j++){var er=emp[j];var un=(er.username||er.Username||'').toString().trim().toLowerCase();if(un){em[un]=parseFloat(er.totaccessoryprofit||0)||0;var hw=parseFloat(er.hoursworked||er.HoursWorked||er['hours worked']||0);hoursMap[un]=isNaN(hw)?null:hw;}}
+  for(var j=0;j<emp.length;j++){var er=emp[j];var un=(er.username||er.Username||'').toString().trim().toLowerCase();if(un){em[un]=parseFloat(er.totaccessoryprofit||0)||0;var hw=empHours(er);hoursMap[un]=isNaN(hw)?null:hw;}}
   var um={};
   for(var k=0;k<csv.length;k++){var cr=csv[k];if(cr.acttype!=='Upgrade'||cr.plantype1!=='Voice'||cr.source!=='Inventory')continue;var u2=(cr.username||'').trim().toLowerCase();if(u2)um[u2]=(um[u2]||0)+1;}
   var reps=[];
