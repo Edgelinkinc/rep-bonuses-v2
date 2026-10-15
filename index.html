@@ -1250,6 +1250,15 @@ function autoAllocate(cb){
 // weeks AFTER the last posted week, using each CB's remaining (un-posted) balance.
 // The prior open week posts automatically when a newer week's reports are processed.
 function cbLockedThrough(){var w=getWeeks();var l='';for(var i=0;i<w.length;i++){if(w[i].cbPosted&&w[i].weekStart>l)l=w[i].weekStart;}return l;}
+// Default start week for a NEW chargeback: the current open payroll week (latest week with
+// report data, if not posted yet), otherwise the first week after the last posted one.
+// Never a far-out placeholder, so new CBs hit the current payroll first.
+function cbDefaultStart(fallback){
+  var lk=cbLockedThrough();var lr=latestRealWeekStart();
+  if(lr&&(!lk||lr>lk))return lr;
+  var w=getWeeks();var nx='';for(var i=0;i<w.length;i++){if(w[i].weekStart>lk&&(!nx||w[i].weekStart<nx))nx=w[i].weekStart;}
+  return nx||lr||fallback;
+}
 function cbPostedSum(cb){var t=0;if(cb&&cb.posted){for(var i=0;i<cb.posted.length;i++)t+=cb.posted[i].amount||0;}return t;}
 function latestRealWeekStart(){var w=getWeeks();var l='';for(var i=0;i<w.length;i++){if(w[i].reps&&w[i].reps.length>0&&w[i].weekStart>l)l=w[i].weekStart;}return l;}
 function allocateAll(ntid,opts){
@@ -1406,7 +1415,7 @@ function unpostCBWeek(ws){
 function autoDeductCB(cb){
   // In the live-rollover model nothing is pre-stamped; auto allocation handles it.
   if(cb.mode===undefined)cb.mode='auto';
-  if(!cb.startWeek){var wk=getLatestWeek();cb.startWeek=wk?wk.weekStart:cb.date;}
+  if(!cb.startWeek){cb.startWeek=cbDefaultStart(cb.date);}
   return true;
 }
 
@@ -2407,7 +2416,7 @@ function saveCB(){
   if(!repName)repName=ntid.toUpperCase();
   var cbs=getCBs();
   var _lw=getLatestWeek();
-  var newCB={ntid:ntid,repName:repName,category:cat,date:date,totalOwed:total,pct:pct,notes:notes,payments:[],mode:'auto',startWeek:_lw?_lw.weekStart:date,createdAt:new Date().toISOString()};
+  var newCB={ntid:ntid,repName:repName,category:cat,date:date,totalOwed:total,pct:pct,notes:notes,payments:[],mode:'auto',startWeek:cbDefaultStart(date),createdAt:new Date().toISOString()};
   var autoApplied=autoDeductCB(newCB);
   cbs.push(newCB);
   sv(SK.cb,cbs);cm('mo-cb');renderCBT();
@@ -2424,7 +2433,7 @@ function openSchedule(idx){
   var wksAsc=getWeeks().slice().sort(function(a,b){return new Date(a.weekStart)-new Date(b.weekStart);});
   ss.innerHTML='';
   for(var s=0;s<wksAsc.length;s++){var o=document.createElement('option');o.value=wksAsc[s].weekStart;o.textContent=fmtR(wksAsc[s].weekStart,wksAsc[s].weekEnd);ss.appendChild(o);}
-  var curStart=cb.startWeek||(getLatestWeek()?getLatestWeek().weekStart:'');
+  var curStart=cb.startWeek||cbDefaultStart('');
   ss.value=curStart;
   buildSchedWeeks(cb);
   schedModeChange();
@@ -2460,7 +2469,7 @@ function saveSchedule(){
     cb.payments=cb.payments?cb.payments.filter(function(p){return p.flagged;}):[];
     var pickedStart=document.getElementById('sched-start').value;
     if(pickedStart){cb.startWeek=pickedStart;}
-    else if(!cb.startWeek){var lw=getLatestWeek();cb.startWeek=lw?lw.weekStart:cb.date;}
+    else if(!cb.startWeek){cb.startWeek=cbDefaultStart(cb.date);}
   } else {
     cb.mode='manual';
     var inps=document.querySelectorAll('.sched-inp');var pays=[];var sum=0;
@@ -2624,7 +2633,7 @@ function procCBImport(rows){
     var notes=String(row['Notes']||row['notes']||'').trim();
     if(total>flagT&&!pct)flagged++;
     var _lwi=getLatestWeek();
-    var impCB={ntid:ntid,repName:repName,category:cat,date:date,totalOwed:total,pct:pct,notes:notes,payments:[],mode:'auto',startWeek:_lwi?_lwi.weekStart:date,createdAt:new Date().toISOString()};
+    var impCB={ntid:ntid,repName:repName,category:cat,date:date,totalOwed:total,pct:pct,notes:notes,payments:[],mode:'auto',startWeek:cbDefaultStart(date),createdAt:new Date().toISOString()};
     if(autoDeductCB(impCB))autoCount++;
     cbs.push(impCB);
     added++;
@@ -2781,6 +2790,9 @@ function renderWkTable(){
   if(!weeks.length){body.innerHTML='<tr><td colspan="9" style="text-align:center;color:var(--gray);padding:20px">No weeks loaded.</td></tr>';return;}
   weeks.sort(function(a,b){return new Date(b.weekStart)-new Date(a.weekStart);});var rows='';
   var sum=cbWeekSummaries();var lk=cbLockedThrough();var openWs=latestRealWeekStart();
+  // The balance rolling out of the latest real week lands on the NEXT future week: show it there as DUE.
+  var dueAmt=(sum[openWs]&&sum[openWs].rolled)||0;var dueWs='';
+  for(var dw=0;dw<weeks.length;dw++){var dk=weeks[dw];if(dk.weekStart>openWs&&(!dk.reps||!dk.reps.length)&&(!dueWs||dk.weekStart<dueWs))dueWs=dk.weekStart;}
   for(var i=0;i<weeks.length;i++){
     var wk=weeks[i];var sm=sum[wk.weekStart]||{taken:0,rolled:0};var cbTot=sm.taken;
     var net=Math.max(0,(wk.grossBonus||0)-cbTot);
@@ -2799,7 +2811,7 @@ function renderWkTable(){
       '<td class="amt">'+fmt(wk.grossBonus||0)+'</td>'+
       '<td class="amt" style="color:var(--orange)">'+fmt(wk.arcadeTotal||0)+'</td>'+
       '<td class="amt rd"><a href="javascript:void(0)" onclick="openCBWeek(\''+wk.weekStart+'\')" style="color:inherit">'+fmt(cbTot)+'</a> '+stBadge+'</td>'+
-      '<td class="amt" style="color:#b45309">'+(sm.rolled>0.001?fmt(sm.rolled):'<span style="color:var(--gray)">—</span>')+'</td>'+
+      '<td class="amt" style="color:#b45309">'+(sm.rolled>0.001?fmt(sm.rolled):(wk.weekStart===dueWs&&dueAmt>0.001?'<span style="font-size:11px;font-style:italic">'+fmt(dueAmt)+' DUE</span>':'<span style="color:var(--gray)">—</span>'))+'</td>'+
       '<td class="amt gr">'+fmt(net)+'</td>'+
       '<td style="font-size:11px;color:var(--gray)">'+(wk.loadedAt?fmtDT(wk.loadedAt):'<em>awaiting reports</em>')+'</td>'+
       '<td style="display:flex;gap:4px;flex-wrap:wrap">'+acts+'</td></tr>';
