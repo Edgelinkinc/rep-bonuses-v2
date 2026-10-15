@@ -476,7 +476,7 @@ tbody td{padding:10px 12px;white-space:nowrap}
         </div>
         <div class="card">
           <div class="ct">Loaded Week History</div>
-          <div class="tw"><table><thead><tr><th>Week</th><th>Reps</th><th>Gross Bonus</th><th>Arcade</th><th>CB</th><th>Net</th><th>Loaded</th><th></th></tr></thead><tbody id="wk-body"></tbody></table></div>
+          <div class="tw"><table><thead><tr><th>Week</th><th>Reps</th><th>Gross Bonus</th><th>Arcade</th><th>CB Taken</th><th>Rolled Fwd</th><th>Net</th><th>Loaded</th><th></th></tr></thead><tbody id="wk-body"></tbody></table></div>
         </div>
       </div>
 
@@ -694,6 +694,13 @@ tbody td{padding:10px 12px;white-space:nowrap}
   </div>
 </div>
 
+<div class="mo" id="mo-cbdet">
+  <div class="md" style="max-width:860px">
+    <h3 id="cbdet-t">Chargebacks</h3>
+    <div id="cbdet-body"></div>
+    <div class="mf"><button class="btn btn-s" id="cbdet-csv" onclick="dlCBDetCsv()">&#11015; CSV</button><button class="btn btn-p" onclick="cm('mo-cbdet')">CLOSE</button></div>
+  </div>
+</div>
 <div class="mo" id="mo-sched">
   <div class="md" style="max-width:640px">
     <h3>Chargeback Schedule</h3>
@@ -1236,7 +1243,17 @@ function autoAllocate(cb){
 // so multiple auto CBs stack (each week's bonus is consumed once, in CB order).
 // Manual CBs consume their scheduled amounts first; auto CBs fill what's left.
 // Returns {byWeek:{weekStart:[{cb,amount}]}}.
-function allocateAll(ntid){
+// ═══ POSTED CHARGEBACK LEDGER ═══
+// When a payroll week is POSTED, every chargeback dollar deducted in that week is
+// stamped permanently onto the chargeback (cb.posted=[{weekStart,amount,at}]) and the
+// week is flagged cbPosted. Posted weeks never recalculate. Live rollover only runs on
+// weeks AFTER the last posted week, using each CB's remaining (un-posted) balance.
+// The prior open week posts automatically when a newer week's reports are processed.
+function cbLockedThrough(){var w=getWeeks();var l='';for(var i=0;i<w.length;i++){if(w[i].cbPosted&&w[i].weekStart>l)l=w[i].weekStart;}return l;}
+function cbPostedSum(cb){var t=0;if(cb&&cb.posted){for(var i=0;i<cb.posted.length;i++)t+=cb.posted[i].amount||0;}return t;}
+function latestRealWeekStart(){var w=getWeeks();var l='';for(var i=0;i<w.length;i++){if(w[i].reps&&w[i].reps.length>0&&w[i].weekStart>l)l=w[i].weekStart;}return l;}
+function allocateAll(ntid,opts){
+  opts=opts||{};
   var cbs=getCBs();var mine=[];
   for(var i=0;i<cbs.length;i++){if(cbs[i].ntid.toLowerCase()===ntid.toLowerCase())mine.push(cbs[i]);}
   var pw=repPayoutWeeks(ntid); // ascending, payout>0
@@ -1244,12 +1261,15 @@ function allocateAll(ntid){
   var consumed={};      // weekStart -> total $ taken (manual + auto)
   var autoConsumed={};  // weekStart -> $ taken by AUTO chargebacks only (subject to the cap)
   var result={};        // weekStart -> [{cb,amount}]
-  function push(ws,cb,amt,isAuto){if(!result[ws])result[ws]=[];result[ws].push({cb:cb,amount:amt});consumed[ws]=(consumed[ws]||0)+amt;if(isAuto)autoConsumed[ws]=(autoConsumed[ws]||0)+amt;}
+  function push(ws,cb,amt,isAuto,isPosted){if(!result[ws])result[ws]=[];result[ws].push({cb:cb,amount:amt,posted:!!isPosted});consumed[ws]=(consumed[ws]||0)+amt;if(isAuto)autoConsumed[ws]=(autoConsumed[ws]||0)+amt;}
+  var lockedThrough=cbLockedThrough();
+  // POSTED deductions first: these are permanent history and never move.
+  for(var pm=0;pm<mine.length;pm++){var pc=mine[pm];if(pc.posted){for(var pp=0;pp<pc.posted.length;pp++){if(pc.posted[pp].amount>0.001)push(pc.posted[pp].weekStart,pc,pc.posted[pp].amount,false,true);}}}
   // Gross bonus for a week from the payout-week list.
   function grossOf(ws){for(var i=0;i<pw.length;i++){if(pw[i].weekStart===ws)return pw[i].gross;}return 0;}
   // Manual first (fixed schedule, EXEMPT from the cap), so auto rollovers fill remaining room.
   for(var m=0;m<mine.length;m++){var cb=mine[m];if(cb.mode==='manual'&&cb.payments){
-    for(var p=0;p<cb.payments.length;p++){push(cb.payments[p].weekStart,cb,cb.payments[p].amount,false);}
+    for(var p=0;p<cb.payments.length;p++){if(lockedThrough&&cb.payments[p].weekStart<=lockedThrough)continue;push(cb.payments[p].weekStart,cb,cb.payments[p].amount,false);}
   }}
   // Auto chargebacks: allocate WEEK-BY-WEEK so the threshold can be judged on the
   // combined weekly total. Each auto CB carries a running 'remaining' balance and a
@@ -1263,14 +1283,16 @@ function allocateAll(ntid){
   // so empty future weeks never push the start past a real payout week.
   var latestWs='0000-01-01';var _allw=getWeeks();
   for(var lw0=0;lw0<_allw.length;lw0++){if(_allw[lw0].reps&&_allw[lw0].reps.length>0&&_allw[lw0].weekStart>latestWs)latestWs=_allw[lw0].weekStart;}
+  if(opts.openFrom)latestWs=opts.openFrom; // posting an older week: open the window there
   var autos=[];
   for(var a=0;a<mine.length;a++){var cbA=mine[a];if(cbA.mode==='manual')continue;
     var rawStart=cbA.startWeek||cbA.date||'0000-01-01';
     var startWk=(rawStart>latestWs)?rawStart:latestWs; // never earlier than the latest week
     var after=[];
-    for(var w=0;w<pw.length;w++){if(pw[w].weekStart>=startWk)after.push(pw[w].weekStart);}
+    for(var w=0;w<pw.length;w++){if(pw[w].weekStart>=startWk&&(!lockedThrough||pw[w].weekStart>lockedThrough))after.push(pw[w].weekStart);}
     after.sort();
-    autos.push({cb:cbA,remaining:cbA.totalOwed,order:after});
+    var remA=cbA.totalOwed-cbPostedSum(cbA);
+    autos.push({cb:cbA,remaining:remA>0.001?remA:0,order:after});
   }
   // Allocate in PASSES. Each pass, every unpaid auto CB targets ONLY its current
   // nearest-preferred week (front of its order list that still has room). We then
@@ -1329,7 +1351,7 @@ function cbForWeek(ntid,weekStart){
   for(var i=0;i<list.length;i++){
     if(list[i].amount<=0.001)continue;
     total+=list[i].amount;
-    items.push({category:list[i].cb.category,date:list[i].cb.date,amount:list[i].amount,notes:list[i].cb.notes,
+    items.push({category:list[i].cb.category,date:list[i].cb.date,amount:list[i].amount,notes:list[i].cb.notes,posted:!!list[i].posted,
       rolled:(list[i].cb.mode!=='manual'&&Math.abs(list[i].amount-list[i].cb.totalOwed)>0.01)});
   }
   return{total:total,items:items};
@@ -1337,15 +1359,48 @@ function cbForWeek(ntid,weekStart){
 // Balance across ALL loaded weeks (how much has actually been collected so far).
 function cbSig(cb){return (cb.ntid||'')+'|'+(cb.category||'')+'|'+(cb.date||'')+'|'+(cb.totalOwed||0)+'|'+(cb.createdAt||'');}
 function cbBal(cb){
+  var postedAmt=cbPostedSum(cb);
   if(cb.mode==='manual'||(cb.payments&&cb.payments.length&&cb.mode!=='auto')){
-    var p=0;for(var i=0;i<cb.payments.length;i++)p+=cb.payments[i].amount;
-    return{paid:p,balance:cb.totalOwed-p,status:p<=0?'open':(p>=cb.totalOwed-0.001?'closed':'partial')};
+    var lk=cbLockedThrough();var p=postedAmt;for(var i=0;i<cb.payments.length;i++){if(lk&&cb.payments[i].weekStart<=lk)continue;p+=cb.payments[i].amount;}
+    return{paid:p,posted:postedAmt,balance:cb.totalOwed-p,status:p<=0?'open':(p>=cb.totalOwed-0.001?'closed':'partial')};
   }
   // Auto: collected = sum of this CB's allocations across all weeks (cross-CB aware).
   var sig=cbSig(cb);var alloc=allocateAll(cb.ntid);var paid=0;
   for(var ws in alloc){for(var i=0;i<alloc[ws].length;i++){if(cbSig(alloc[ws][i].cb)===sig)paid+=alloc[ws][i].amount;}}
   var balance=cb.totalOwed-paid;
-  return{paid:paid,balance:balance,status:paid<=0.001?'open':(balance<=0.001?'closed':'partial')};
+  return{paid:paid,posted:postedAmt,balance:balance,status:paid<=0.001?'open':(balance<=0.001?'closed':'partial')};
+}
+// POST a week: stamp every chargeback deducted in that week permanently onto the CB.
+// Only weeks after the last posted week can be posted. Returns {ok,msg,total,count}.
+function postCBWeek(ws){
+  var lk=cbLockedThrough();
+  if(lk&&ws<=lk)return{ok:false,msg:'Week '+ws+' is on or before the last posted week ('+lk+').'};
+  var weeks=getWeeks();var wk=null;for(var i=0;i<weeks.length;i++){if(weeks[i].weekStart===ws){wk=weeks[i];break;}}
+  if(!wk)return{ok:false,msg:'Week not found.'};
+  if(!wk.reps||!wk.reps.length)return{ok:false,msg:'Week has no report data yet.'};
+  var cbs=getCBs();var bySig={};var ntids={};
+  for(var c=0;c<cbs.length;c++){bySig[cbSig(cbs[c])]=cbs[c];ntids[normNtid(cbs[c].ntid)]=true;}
+  var total=0,count=0,now=new Date().toISOString();
+  for(var nt in ntids){
+    var alloc=allocateAll(nt,{openFrom:ws});var list=alloc[ws]||[];
+    for(var j=0;j<list.length;j++){var it=list[j];if(it.posted||it.amount<=0.001)continue;
+      var tgt=bySig[cbSig(it.cb)];if(!tgt)continue;
+      if(!tgt.posted)tgt.posted=[];
+      tgt.posted.push({weekStart:ws,amount:Math.round(it.amount*100)/100,at:now});
+      total+=it.amount;count++;}
+  }
+  wk.cbPosted=true;wk.cbPostedAt=now;wk.cbPostedTotal=Math.round(total*100)/100;
+  sv(SK.cb,cbs);sv(SK.weeks,weeks);
+  return{ok:true,total:total,count:count};
+}
+// UNPOST the most recent posted week (undo). Removes its stamped deductions.
+function unpostCBWeek(ws){
+  if(ws!==cbLockedThrough())return{ok:false,msg:'Only the most recent posted week can be unposted.'};
+  var cbs=getCBs();
+  for(var c=0;c<cbs.length;c++){if(cbs[c].posted)cbs[c].posted=cbs[c].posted.filter(function(p){return p.weekStart!==ws;});}
+  var weeks=getWeeks();for(var i=0;i<weeks.length;i++){if(weeks[i].weekStart===ws){delete weeks[i].cbPosted;delete weeks[i].cbPostedAt;delete weeks[i].cbPostedTotal;}}
+  sv(SK.cb,cbs);sv(SK.weeks,weeks);
+  return{ok:true};
 }
 // New chargebacks default to AUTO rollover starting from the latest week (or their date).
 function autoDeductCB(cb){
@@ -1755,12 +1810,20 @@ function mergeAndSave(pbi,emp,csv,ws,we,stEl,ret,ecs){
   reps.sort(function(a,b){var al=(a.full_name.split(' ').pop()||'').toLowerCase();var bl=(b.full_name.split(' ').pop()||'').toLowerCase();return al<bl?-1:al>bl?1:0;});
   var gross=0,arc=0;
   for(var g=0;g<reps.length;g++){var c=calcRep(reps[g]);gross+=c.weeklyBonus;arc+=c.arcade;}
-  var weeks=getWeeks().filter(function(w){return w.weekStart!==ws;});
-  weeks.push({weekStart:ws,weekEnd:we,reps:reps,loadedAt:new Date().toISOString(),grossBonus:gross,arcadeTotal:arc,placeholder:false});
+  // Lock in the prior payroll: when a NEWER week loads, the previous open week's
+  // chargebacks are posted permanently before the new week joins the rollover.
+  var prevLatest=latestRealWeekStart();var autoPosted=null;
+  if(prevLatest&&ws>prevLatest&&prevLatest>cbLockedThrough()){autoPosted=postCBWeek(prevLatest);if(autoPosted&&autoPosted.ok)autoPosted.ws=prevLatest;}
+  var oldWk=null;var _ow=getWeeks();for(var owi=0;owi<_ow.length;owi++){if(_ow[owi].weekStart===ws){oldWk=_ow[owi];break;}}
+  var weeks=_ow.filter(function(w){return w.weekStart!==ws;});
+  var newWk={weekStart:ws,weekEnd:we,reps:reps,loadedAt:new Date().toISOString(),grossBonus:gross,arcadeTotal:arc,placeholder:false};
+  if(oldWk&&oldWk.cbPosted){newWk.cbPosted=true;newWk.cbPostedAt=oldWk.cbPostedAt;newWk.cbPostedTotal=oldWk.cbPostedTotal;}
+  weeks.push(newWk);
   sv(SK.weeks,weeks);
   document.getElementById('sw').textContent=fmtR(ws,we);
   var retCount=0;for(var rc0=0;rc0<reps.length;rc0++){if(reps[rc0].retention!==null&&reps[rc0].retention!==undefined)retCount++;}
-  stEl.textContent='\u2705 Processed '+reps.length+' reps for '+fmtR(ws,we)+(zeroAdded>0?' ('+zeroAdded+' from Emp Perf only)':'')+(ret?' \u2014 retention loaded for '+retCount+' rep(s)':' \u2014 no retention file (decelerator off)')+(newReps>0?' \u2014 \u26A0\uFE0F '+newReps+' NEW rep(s) auto-added to roster.':'');
+  stEl.textContent='\u2705 Processed '+reps.length+' reps for '+fmtR(ws,we)+(zeroAdded>0?' ('+zeroAdded+' from Emp Perf only)':'')+(ret?' \u2014 retention loaded for '+retCount+' rep(s)':' \u2014 no retention file (decelerator off)')+(newReps>0?' \u2014 \u26A0\uFE0F '+newReps+' NEW rep(s) auto-added to roster.':'')+
+    (autoPosted&&autoPosted.ok?' \u2014 \uD83D\uDD12 Prior week '+fmtR(autoPosted.ws,addDays(autoPosted.ws,6))+' chargebacks POSTED ('+fmt(autoPosted.total)+').':'');
   ensureFutureWeeksForBalances();
   renderWkTable();showToast(newReps>0?'Week loaded! \u26A0\uFE0F '+newReps+' new rep(s) need coach/store assignment.':'Week loaded!');fillExportWk();fillExportRep();
 }
@@ -2296,9 +2359,10 @@ function renderCBT(){
       '<td style="font-size:11px;color:var(--gray)">'+esc(cb.ntid)+'</td><td>'+esc(coach)+'</td>'+
       '<td><span class="badge bmg">'+esc(cb.category)+'</span></td><td>'+fmtD(cb.date)+'</td>'+
       '<td class="amt">'+fmt(cb.totalOwed)+'</td><td>'+modeBadge+'</td>'+
-      '<td class="amt gr">'+fmt(b.paid)+'</td><td class="amt rd">'+fmt(b.balance)+'</td>'+
+      '<td class="amt gr">'+fmt(b.paid)+(b.posted>0.001?'<div style="font-size:10px;color:#166534;font-weight:600">&#128274; '+fmt(b.posted)+' posted</div>':'')+'</td><td class="amt rd">'+fmt(b.balance)+'</td>'+
       '<td><span class="badge b'+b.status.substring(0,2)+'">'+b.status.toUpperCase()+'</span></td>'+
       '<td style="display:flex;gap:4px;flex-wrap:wrap">'+
+        '<button class="btn btn-s btn-sm" onclick="openCBHistory('+i+')">History</button>'+
         '<button class="btn btn-pu btn-sm" onclick="openSchedule('+i+')">Schedule</button>'+
         '<button class="btn btn-d btn-sm" onclick="delCB('+i+')">Del</button></td></tr>';
   }
@@ -2682,25 +2746,136 @@ function batchFutureWeeks(){
   renderWkTable();fillExportWk&&fillExportWk();
   showToast(added+' future week(s) added.');
 }
+function cbStartOf(cb){return cb.startWeek||cb.date||'0000-01-01';}
+// Per-week chargeback summary across all reps: taken this week + balance rolling forward after it.
+// Returns {ws:{taken, rolled, reps:{ntid:{taken,items,rolled}}}}.
+function cbWeekSummaries(){
+  var cbs=getCBs();var byNt={};
+  for(var i=0;i<cbs.length;i++){var k=normNtid(cbs[i].ntid);if(!byNt[k])byNt[k]=[];byNt[k].push(cbs[i]);}
+  var weeks=getWeeks().slice().sort(function(a,b){return a.weekStart<b.weekStart?-1:1;});
+  var out={};for(var w=0;w<weeks.length;w++)out[weeks[w].weekStart]={taken:0,rolled:0,reps:{}};
+  for(var nt in byNt){
+    var alloc=allocateAll(nt);var mine=byNt[nt];
+    // per-CB cumulative deducted, walking weeks in order
+    var cum={};var firstHit={};
+    for(var w2=0;w2<weeks.length;w2++){var ws=weeks[w2].weekStart;var list=alloc[ws]||[];var o=out[ws];
+      for(var j=0;j<list.length;j++){if(list[j].amount<=0.001)continue;var sg=cbSig(list[j].cb);cum[sg]=(cum[sg]||0)+list[j].amount;if(!firstHit[sg])firstHit[sg]=ws;
+        if(!o.reps[nt])o.reps[nt]={taken:0,items:[],rolled:0};
+        o.reps[nt].taken+=list[j].amount;o.reps[nt].items.push({category:list[j].cb.category,amount:list[j].amount,posted:list[j].posted});o.taken+=list[j].amount;}
+      var rolled=0;
+      for(var m=0;m<mine.length;m++){var sg2=cbSig(mine[m]);
+        var active=(firstHit[sg2]&&firstHit[sg2]<=ws)||cbStartOf(mine[m])<=ws;
+        if(!active)continue;var left=mine[m].totalOwed-(cum[sg2]||0);if(left>0.001)rolled+=left;}
+      if(rolled>0.001){if(!o.reps[nt])o.reps[nt]={taken:0,items:[],rolled:0};o.reps[nt].rolled=rolled;o.rolled+=rolled;}
+    }
+  }
+  return out;
+}
 function renderWkTable(){
   var weeks=getWeeks();var body=document.getElementById('wk-body');
-  if(!weeks.length){body.innerHTML='<tr><td colspan="8" style="text-align:center;color:var(--gray);padding:20px">No weeks loaded.</td></tr>';return;}
+  if(!weeks.length){body.innerHTML='<tr><td colspan="9" style="text-align:center;color:var(--gray);padding:20px">No weeks loaded.</td></tr>';return;}
   weeks.sort(function(a,b){return new Date(b.weekStart)-new Date(a.weekStart);});var rows='';
+  var sum=cbWeekSummaries();var lk=cbLockedThrough();var openWs=latestRealWeekStart();
   for(var i=0;i<weeks.length;i++){
-    var wk=weeks[i];var cbTot=0;
-    for(var r=0;r<wk.reps.length;r++){cbTot+=cbForWeek(wk.reps[r].ntid,wk.weekStart).total;}
+    var wk=weeks[i];var sm=sum[wk.weekStart]||{taken:0,rolled:0};var cbTot=sm.taken;
     var net=Math.max(0,(wk.grossBonus||0)-cbTot);
     var phBadge=wk.placeholder?' <span class="badge" style="background:#fef3c7;color:#92400e;font-size:9px">FUTURE</span>':'';
-    rows+='<tr'+(wk.placeholder?' style="background:#fffdf5"':'')+'><td>'+fmtR(wk.weekStart,wk.weekEnd)+phBadge+'</td><td>'+(wk.placeholder?'<span style="color:var(--gray)">\u2014</span>':wk.reps.length)+'</td>'+
+    var stBadge='';
+    if(wk.cbPosted)stBadge='<span class="badge" style="background:#dcfce7;color:#166534;font-size:9px" title="Posted '+(wk.cbPostedAt?fmtDT(wk.cbPostedAt):'')+'">&#128274; POSTED</span>';
+    else if(!wk.placeholder&&wk.reps.length&&wk.weekStart>lk&&wk.weekStart===openWs)stBadge='<span class="badge" style="background:#dbeafe;color:#1e40af;font-size:9px" title="Current payroll. Locks when you post it or process the next week.">LIVE</span>';
+    else if(!wk.placeholder&&wk.reps.length&&wk.weekStart<=lk)stBadge='<span class="badge" style="background:#f3f4f6;color:#6b7280;font-size:9px">CLOSED</span>';
+    var canPost=!wk.cbPosted&&!wk.placeholder&&wk.reps.length&&(!lk||wk.weekStart>lk);
+    var canUnpost=wk.cbPosted&&wk.weekStart===lk;
+    var acts='<button class="btn btn-s btn-sm" onclick="openCBWeek(\''+wk.weekStart+'\')">CB Detail</button>';
+    if(canPost)acts+='<button class="btn btn-pu btn-sm" onclick="postWkCB(\''+wk.weekStart+'\')">&#128274; Post CBs</button>';
+    if(canUnpost)acts+='<button class="btn btn-s btn-sm" onclick="unpostWkCB(\''+wk.weekStart+'\')">Unpost</button>';
+    acts+='<button class="btn btn-d btn-sm" onclick="delWk(\''+wk.weekStart+'\')">Delete</button>';
+    rows+='<tr'+(wk.placeholder?' style="background:#fffdf5"':'')+'><td>'+fmtR(wk.weekStart,wk.weekEnd)+phBadge+'</td><td>'+(wk.placeholder?'<span style="color:var(--gray)">—</span>':wk.reps.length)+'</td>'+
       '<td class="amt">'+fmt(wk.grossBonus||0)+'</td>'+
       '<td class="amt" style="color:var(--orange)">'+fmt(wk.arcadeTotal||0)+'</td>'+
-      '<td class="amt rd">'+fmt(cbTot)+'</td><td class="amt gr">'+fmt(net)+'</td>'+
+      '<td class="amt rd"><a href="javascript:void(0)" onclick="openCBWeek(\''+wk.weekStart+'\')" style="color:inherit">'+fmt(cbTot)+'</a> '+stBadge+'</td>'+
+      '<td class="amt" style="color:#b45309">'+(sm.rolled>0.001?fmt(sm.rolled):'<span style="color:var(--gray)">—</span>')+'</td>'+
+      '<td class="amt gr">'+fmt(net)+'</td>'+
       '<td style="font-size:11px;color:var(--gray)">'+(wk.loadedAt?fmtDT(wk.loadedAt):'<em>awaiting reports</em>')+'</td>'+
-      '<td><button class="btn btn-d btn-sm" onclick="delWk(\''+wk.weekStart+'\')">Delete</button></td></tr>';
+      '<td style="display:flex;gap:4px;flex-wrap:wrap">'+acts+'</td></tr>';
   }
   body.innerHTML=rows;
 }
-function delWk(ws){openConf('Delete week '+ws+'?',function(){sv(SK.weeks,getWeeks().filter(function(w){return w.weekStart!==ws;}));renderWkTable();showToast('Deleted.');});}
+function postWkCB(ws){
+  openConf('Post chargebacks for week of '+fmtD(ws)+'? The amounts deducted this week will be locked permanently and will no longer recalculate. Remaining balances roll forward.',function(){
+    var r=postCBWeek(ws);if(!r.ok){showToast(r.msg);return;}
+    renderWkTable();if(typeof renderCBT==='function'&&document.getElementById('cb-body'))renderCBT();
+    showToast('Posted '+fmt(r.total)+' across '+r.count+' chargeback deduction(s).');});
+}
+function unpostWkCB(ws){
+  openConf('Unpost week of '+fmtD(ws)+'? Its chargeback deductions go back to live calculation.',function(){
+    var r=unpostCBWeek(ws);if(!r.ok){showToast(r.msg);return;}
+    renderWkTable();if(document.getElementById('cb-body'))renderCBT();showToast('Week unposted.');});
+}
+function delWk(ws){
+  var w0=null;var _w=getWeeks();for(var i=0;i<_w.length;i++){if(_w[i].weekStart===ws)w0=_w[i];}
+  var msg='Delete week '+ws+'?'+(w0&&w0.cbPosted?' This week has POSTED chargebacks — those deductions will be removed and the balances reopened.':'');
+  openConf(msg,function(){
+    if(w0&&w0.cbPosted){var cbs=getCBs();for(var c=0;c<cbs.length;c++){if(cbs[c].posted)cbs[c].posted=cbs[c].posted.filter(function(p){return p.weekStart!==ws;});}sv(SK.cb,cbs);}
+    sv(SK.weeks,getWeeks().filter(function(w){return w.weekStart!==ws;}));renderWkTable();showToast('Deleted.');});
+}
+// ---- CB DETAIL MODALS ----
+var _cbDetCsv=null;
+function openCBWeek(ws){
+  var wk=null;var _w=getWeeks();for(var i=0;i<_w.length;i++){if(_w[i].weekStart===ws)wk=_w[i];}
+  if(!wk)return;
+  var sm=cbWeekSummaries()[ws]||{taken:0,rolled:0,reps:{}};
+  var lk=cbLockedThrough();
+  var status=wk.cbPosted?'<span class="badge" style="background:#dcfce7;color:#166534">&#128274; POSTED '+(wk.cbPostedAt?fmtDT(wk.cbPostedAt):'')+'</span>':
+    (wk.placeholder?'<span class="badge" style="background:#fef3c7;color:#92400e">FUTURE — awaiting reports</span>':
+    (ws<=lk?'<span class="badge" style="background:#f3f4f6;color:#6b7280">CLOSED (not posted)</span>':'<span class="badge" style="background:#dbeafe;color:#1e40af">LIVE — posts when the next week is processed</span>'));
+  var nameOf={};for(var r=0;r<wk.reps.length;r++)nameOf[normNtid(wk.reps[r].ntid)]=wk.reps[r];
+  var keys=Object.keys(sm.reps).sort(function(a,b){var na=(nameOf[a]&&nameOf[a].full_name)||(getRosterRep(a)||{}).name||a;var nb=(nameOf[b]&&nameOf[b].full_name)||(getRosterRep(b)||{}).name||b;return na<nb?-1:1;});
+  var rows='';var csv=[['Rep','NTID','Coach','Gross Bonus','CB Taken','Detail','Net','Rolled Forward']];
+  for(var k=0;k<keys.length;k++){var nt=keys[k];var d=sm.reps[nt];var rp=nameOf[nt];var rr=getRosterRep(nt);
+    var name=(rp&&rp.full_name)||(rr&&rr.name)||nt;var coach=(rr&&rr.coach)||(rp&&rp.coach)||'';
+    var gross=rp?calcRepFor(rp,wk).weeklyBonus:0;var net=Math.max(0,gross-d.taken);
+    var det=[];for(var x=0;x<d.items.length;x++)det.push(d.items[x].category+' '+fmt(d.items[x].amount));
+    rows+='<tr><td><strong>'+esc(name)+'</strong><div style="font-size:10px;color:var(--gray)">'+esc(nt)+'</div></td><td>'+esc(coach)+'</td>'+
+      '<td class="amt">'+fmt(gross)+'</td><td class="amt rd">'+(d.taken>0.001?fmt(d.taken):'—')+(det.length?'<div style="font-size:10px;color:var(--gray);font-weight:500">'+esc(det.join(', '))+'</div>':'')+'</td>'+
+      '<td class="amt gr">'+fmt(net)+'</td><td class="amt" style="color:#b45309">'+(d.rolled>0.001?fmt(d.rolled):'—')+'</td></tr>';
+    csv.push([name,nt,coach,gross.toFixed(2),d.taken.toFixed(2),det.join('; '),net.toFixed(2),d.rolled.toFixed(2)]);
+  }
+  _cbDetCsv={rows:csv,name:'chargebacks_'+ws+'.csv'};
+  document.getElementById('cbdet-t').textContent='Chargebacks — '+fmtR(wk.weekStart,wk.weekEnd);
+  document.getElementById('cbdet-body').innerHTML=
+    '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px">'+status+
+    '<span style="font-size:13px"><strong>Taken:</strong> <span class="rd">'+fmt(sm.taken)+'</span></span>'+
+    '<span style="font-size:13px"><strong>Rolled forward:</strong> <span style="color:#b45309">'+fmt(sm.rolled)+'</span></span></div>'+
+    (rows?'<div class="tw" style="max-height:420px;overflow:auto"><table><thead><tr><th>Rep</th><th>Coach</th><th>Gross</th><th>CB Taken</th><th>Net</th><th>Rolled Fwd</th></tr></thead><tbody>'+rows+'</tbody></table></div>':
+      '<p style="color:var(--gray)">No chargebacks taken or rolling through this week.</p>');
+  document.getElementById('cbdet-csv').style.display=rows?'inline-block':'none';
+  om('mo-cbdet');
+}
+function openCBHistory(idx){
+  var cb=getCBs()[idx];if(!cb)return;
+  var alloc=allocateAll(cb.ntid);var sig=cbSig(cb);var lk=cbLockedThrough();
+  var wks=getWeeks().slice().sort(function(a,b){return a.weekStart<b.weekStart?-1:1;});var wmap={};for(var i=0;i<wks.length;i++)wmap[wks[i].weekStart]=wks[i];
+  var lines=[];for(var ws in alloc){for(var j=0;j<alloc[ws].length;j++){var it=alloc[ws][j];if(cbSig(it.cb)===sig&&it.amount>0.001)lines.push({ws:ws,amount:it.amount,posted:it.posted});}}
+  lines.sort(function(a,b){return a.ws<b.ws?-1:1;});
+  var bal=cb.totalOwed;var rows='';
+  for(var l=0;l<lines.length;l++){bal-=lines[l].amount;var wk=wmap[lines[l].ws];
+    var st=lines[l].posted?'<span class="badge" style="background:#dcfce7;color:#166534">&#128274; POSTED</span>':((wk&&wk.placeholder)?'<span class="badge" style="background:#fef3c7;color:#92400e">SCHEDULED</span>':'<span class="badge" style="background:#dbeafe;color:#1e40af">LIVE</span>');
+    rows+='<tr><td>'+(wk?fmtR(wk.weekStart,wk.weekEnd):fmtD(lines[l].ws))+'</td><td class="amt rd">'+fmt(lines[l].amount)+'</td><td>'+st+'</td><td class="amt" style="color:#b45309">'+fmt(Math.max(0,bal))+'</td></tr>';}
+  _cbDetCsv=null;
+  document.getElementById('cbdet-t').textContent='Chargeback History — '+(cb.repName||cb.ntid);
+  document.getElementById('cbdet-body').innerHTML=
+    '<div style="font-size:13px;margin-bottom:12px"><span class="badge bmg">'+esc(cb.category)+'</span> '+fmtD(cb.date)+' — Owed <strong>'+fmt(cb.totalOwed)+'</strong> — Remaining <strong style="color:#b45309">'+fmt(Math.max(0,bal))+'</strong>'+(cb.notes?'<div style="color:var(--gray);font-size:12px;margin-top:4px">'+esc(cb.notes)+'</div>':'')+'</div>'+
+    (rows?'<div class="tw"><table><thead><tr><th>Week</th><th>Taken</th><th>Status</th><th>Balance After</th></tr></thead><tbody>'+rows+'</tbody></table></div>':'<p style="color:var(--gray)">Nothing deducted yet — the full balance is waiting for a week with a payout.</p>')+
+    (bal>0.001?'<div style="font-size:12px;color:var(--gray);margin-top:10px">'+fmt(bal)+' still rolling forward to the next payout week.</div>':'');
+  document.getElementById('cbdet-csv').style.display='none';
+  om('mo-cbdet');
+}
+function dlCBDetCsv(){
+  if(!_cbDetCsv)return;var out='';
+  for(var i=0;i<_cbDetCsv.rows.length;i++){out+=_cbDetCsv.rows[i].map(function(v){v=String(v==null?'':v);return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;}).join(',')+'\n';}
+  var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([out],{type:'text/csv'}));a.download=_cbDetCsv.name;document.body.appendChild(a);a.click();document.body.removeChild(a);
+}
 
 // ---- TIER ----
 function fillTierWkSel(){var sel=document.getElementById('t-wk');var wks=getWeeks();sel.innerHTML='<option value="all">All Weeks</option>';wks.sort(function(a,b){return new Date(b.weekStart)-new Date(a.weekStart);});for(var i=0;i<wks.length;i++){var o=document.createElement('option');o.value=wks[i].weekStart;o.textContent=fmtR(wks[i].weekStart,wks[i].weekEnd);sel.appendChild(o);}}
