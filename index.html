@@ -2754,6 +2754,7 @@ function cbWeekSummaries(){
   for(var i=0;i<cbs.length;i++){var k=normNtid(cbs[i].ntid);if(!byNt[k])byNt[k]=[];byNt[k].push(cbs[i]);}
   var weeks=getWeeks().slice().sort(function(a,b){return a.weekStart<b.weekStart?-1:1;});
   var out={};for(var w=0;w<weeks.length;w++)out[weeks[w].weekStart]={taken:0,rolled:0,reps:{}};
+  var latestWs=latestRealWeekStart();
   for(var nt in byNt){
     var alloc=allocateAll(nt);var mine=byNt[nt];
     // per-CB cumulative deducted, walking weeks in order
@@ -2763,8 +2764,12 @@ function cbWeekSummaries(){
         if(!o.reps[nt])o.reps[nt]={taken:0,items:[],rolled:0};
         o.reps[nt].taken+=list[j].amount;o.reps[nt].items.push({category:list[j].cb.category,amount:list[j].amount,posted:list[j].posted});o.taken+=list[j].amount;}
       var rolled=0;
+      // Future placeholder weeks: nothing happened, nothing rolls OUT of them.
+      if(weeks[w2].placeholder||!weeks[w2].reps||!weeks[w2].reps.length)continue;
       for(var m=0;m<mine.length;m++){var sg2=cbSig(mine[m]);
-        var active=(firstHit[sg2]&&firstHit[sg2]<=ws)||cbStartOf(mine[m])<=ws;
+        // A balance shows as rolling forward only from the first week it was actually
+        // deducted. Untouched balances show on the latest real week only.
+        var active=(firstHit[sg2]&&firstHit[sg2]<=ws)||ws===latestWs;
         if(!active)continue;var left=mine[m].totalOwed-(cum[sg2]||0);if(left>0.001)rolled+=left;}
       if(rolled>0.001){if(!o.reps[nt])o.reps[nt]={taken:0,items:[],rolled:0};o.reps[nt].rolled=rolled;o.rolled+=rolled;}
     }
